@@ -4,6 +4,7 @@ API
 .. toctree::
     :maxdepth: 1
 
-    token
+    keypair
     service
+    session
     utils
