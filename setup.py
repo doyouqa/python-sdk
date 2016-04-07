@@ -1,3 +1,4 @@
+# from __future__ import unicode_literals
 import os
 
 from setuptools import setup, find_packages
@@ -8,10 +9,10 @@ src_dir = os.path.join(base_dir, "src")
 
 
 about = {}
-with open(os.path.join(src_dir, "oneid", "__about__.py")) as f:
+with open(os.path.join(src_dir, "oneid", "__about__.py"), encoding='utf-8') as f:
     exec(f.read(), about)
 
-with open(os.path.join(base_dir, "README.rst")) as f:
+with open(os.path.join(base_dir, "README.rst"), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
@@ -45,6 +46,7 @@ setup(
     package_data={
         'oneid': ['data/*.yaml'],
     },
-    install_requires=['cryptography>=1.1.2', 'pyyaml',
-                      'requests', 'python-dateutil>=2.4.2'],
+    install_requires=['cryptography>=1.1.2,<2', 'PyYAML>=3.11,<4',
+                      'requests[security]>=2.9.1,<3', 'python-dateutil>=2.4.2,<3',
+                      'pytz>=2015.7', 'six>=1.10.0,<2'],
 )

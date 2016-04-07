@@ -42,8 +42,9 @@ htmlcov/
 .coverage.*
 .cache
 nosetests.xml
-coverage.xml
+coverage*.xml
 *,cover
+coverage
 .idea/
 
 # Translations
@@ -58,3 +59,9 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# pyenv
+.python-version
+
+# mprof
+mprofile_*
