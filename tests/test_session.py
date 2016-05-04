@@ -7,7 +7,7 @@ import sure  # noqa
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, exceptions
+from oneid import session, service, keychain, jwts, exceptions
 
 logger = logging.getLogger(__name__)
 

@@ -106,12 +106,6 @@ class TestBaseService(unittest.TestCase):
         edata = service.encrypt_attr_value(data, key)
         self.assertEqual(service.decrypt_attr_value(edata, key), data)
 
-    def test_jwt(self):
-        keypair = service.create_secret_key()
-        data = {'d': 'Hello, Im Data'}
-        jwt = service.make_jwt(data, keypair)
-        self.assertEqual(service.verify_jwt(jwt, keypair), data)
-
 
 class TestCreateSecretKey(unittest.TestCase):
     def test_basic_call(self):

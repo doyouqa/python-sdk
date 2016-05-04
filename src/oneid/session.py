@@ -6,14 +6,7 @@ import json
 from requests import request
 from codecs import open
 
-from cryptography.exceptions import InvalidSignature
-
-from . import service, utils, exceptions
-
-REQUIRED_JWT_HEADER_ELEMENTS = {
-    'typ': 'JWT',
-    'alg': 'ES256',
-}
+from . import service, jwts, utils, exceptions
 
 
 class SessionBase(object):
@@ -68,29 +61,6 @@ class SessionBase(object):
                                                              **kwargs)
                         )
 
-    def create_jwt_payload(self, **kwargs):
-        """
-        Create a generic JWT Payload
-
-        :param claims: JWT Claims Dict()
-        :return: JWT payload (*no signature)
-        """
-        alg = json.dumps(REQUIRED_JWT_HEADER_ELEMENTS)
-        alg_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(alg)))
-
-        # Required claims
-        jti = utils.make_nonce()
-
-        claims = {'jti': jti}
-        claims.update(kwargs)
-
-        claims_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(json.dumps(claims))))
-
-        payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
-                                                  claims_b64=claims_b64)
-
-        return payload
-
     def make_http_request(self, http_method, url, headers=None, body=None):
         """
         Generic HTTP request
@@ -111,6 +81,23 @@ class SessionBase(object):
             raise exceptions.InvalidAuthentication()
 
         return req.content
+
+    def service_request(self, http_method, endpoint, body=None):
+        """
+        Make an API Request
+
+        :param method:
+        :param endpoint:
+        :param body:
+        :return:
+        """
+        auth_jwt_header = jwts.make_jwt({}, self.identity_credentials.keypair)
+
+        headers = {
+            'Content-Type': 'application/jwt',
+            'Authorization': 'Bearer %s' % auth_jwt_header
+        }
+        return self.make_http_request(http_method, endpoint, headers=headers, body=body)
 
     def prepare_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -231,32 +218,6 @@ class ServerSession(SessionBase):
 
         super(ServerSession, self)._create_services(params, **global_kwargs)
 
-    def service_request(self, http_method, endpoint, body=None):
-        """
-        Make an API Request
-
-        :param method:
-        :param endpoint:
-        :param body:
-        :return:
-        """
-        payload = self.create_jwt_payload()
-
-        signature = self.identity_credentials.keypair.sign(payload)
-
-        auth_jwt_header = '{payload}.{signature}'.format(payload=payload,
-                                                         signature=signature)
-
-        headers = {
-            'Content-Type': 'application/jwt',
-            'Authorization': 'Bearer %s' % auth_jwt_header
-        }
-
-        response = self.make_http_request(http_method, endpoint, headers=headers,
-                                          body=body)
-
-        return response
-
     def prepare_message(self, *args, **kwargs):
         """
         Build message that has two-factor signatures
@@ -328,32 +289,6 @@ class AdminSession(SessionBase):
             global_kwargs['project_credentials'] = self.project_credentials
 
         super(AdminSession, self)._create_services(params, **global_kwargs)
-
-    def service_request(self, http_method, endpoint, body=None):
-        """
-        Make an API Request
-
-        :param method:
-        :param endpoint:
-        :param body:
-        :return:
-        """
-        payload = self.create_jwt_payload()
-
-        signature = self.identity_credentials.keypair.sign(payload)
-
-        auth_jwt_header = '{payload}.{signature}'.format(payload=payload,
-                                                         signature=signature)
-
-        headers = {
-            'Content-Type': 'application/jwt',
-            'Authorization': 'Bearer %s' % auth_jwt_header
-        }
-
-        response = self.make_http_request(http_method, endpoint, headers=headers,
-                                          body=body)
-
-        return response
 
     def prepare_message(self, *args, **kwargs):
         raise NotImplementedError

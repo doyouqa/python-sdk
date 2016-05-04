@@ -12,7 +12,7 @@ import sure  # noqa
 
 # from nose.tools import nottest
 
-from oneid import service, keychain, utils
+from oneid import service, keychain, jwts, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ MSGS = [
 ]
 
 
-class TestJWT(TestCase):
+class TestJWTs(TestCase):
     def setUp(self):
         self.keypair = service.create_secret_key()
 
@@ -33,14 +33,26 @@ class TestJWT(TestCase):
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
-        jwt = service.make_jwt(claims, keypair)
-        service.verify_jwt(jwt, keypair).should.equal(claims)
-        service.verify_jwt(jwt).should.equal(claims)
+        jwt = jwts.make_jwt(claims, keypair)
+        claims1 = jwts.verify_jwt(jwt, keypair)
+        claims2 = jwts.verify_jwt(jwt)
+
+        claims1.should.be.truthy
+        claims2.should.be.truthy
+
+        for claim in claims:
+            claims1.should.have.key(claim).equal_to(claims[claim])
+            claims2.should.have.key(claim).equal_to(claims[claim])
 
     def test_jwt_sunny_day(self):
         for msg in MSGS:
             logger.debug('testing jwt for "%s"', msg[:1000])
             self._create_and_verify_good_jwt({'message': msg})
+
+    def test_keypair_identity(self):
+        keypair = service.create_secret_key()
+        keypair.identity = '1234'
+        self._create_and_verify_good_jwt({'message': MSGS[0]}, keypair=keypair)
 
     # def test_null_message(self):
     #     self._create_and_verify_good_jwt(None)
@@ -61,10 +73,10 @@ class TestJWT(TestCase):
             '18Uo2vYWGizuUlAjqPHbsAPwDiabQ-nD89JP0rdBL0pTo7kMacPZlcA2YIuSDWHx2tqrRXwY49EqqW6Pz6LaTw'
         )
         pri = keychain.Keypair.from_secret_der(base64.b64decode(sec_der))
-        service.verify_jwt(token, pri).should.be.true
+        jwts.verify_jwt(token, pri).should.be.true
 
         pub = keychain.Keypair.from_public_der(base64.b64decode(pub_der))
-        service.verify_jwt(token, pub).should.be.true
+        jwts.verify_jwt(token, pub).should.be.true
 
     def test_sample_sjcl_token_two(self):
         sec_der = (
@@ -83,92 +95,87 @@ class TestJWT(TestCase):
         )
 
         pri = keychain.Keypair.from_secret_der(base64.b64decode(sec_der))
-        service.verify_jwt(token, pri).should.be.true
+        jwts.verify_jwt(token, pri).should.be.true
 
         pub = keychain.Keypair.from_public_der(base64.b64decode(pub_der))
-        service.verify_jwt(token, pub).should.be.true
+        jwts.verify_jwt(token, pub).should.be.true
 
     def test_empty_message(self):
         self._create_and_verify_good_jwt({'1': 1})
         self._create_and_verify_good_jwt({})
 
-    def test_jwt_already_json_messages(self):
-        service.verify_jwt(
-            service.make_jwt('{"iss": "oneID", "message": "hello"}', self.keypair),
-            self.keypair
-        ).should.be.true
-        service.verify_jwt(
-            service.make_jwt(b'{"iss": "oneID", "message": "hello"}', self.keypair),
-            self.keypair
-        ).should.be.true
-
     def test_jwt_wrong_type(self):
-        service.make_jwt.when.called_with(123, self.keypair).should.throw(Exception)
-        service.make_jwt.when.called_with(123.456, self.keypair).should.throw(Exception)
-        service.make_jwt.when.called_with(['a', 'b'], self.keypair).should.throw(Exception)
-        service.make_jwt.when.called_with(lambda a: a, self.keypair).should.throw(Exception)
-
-    def test_verify_jwt_string_or_bytes(self):
-        jwt1 = service.make_jwt('{"iss": "oneID", "message": "hello"}', self.keypair)
-        if isinstance(jwt1, bytes):
-            jwt2 = jwt1.decode('utf-8')
-        else:
-            jwt2 = jwt1.encode('utf-8')
-        service.verify_jwt(jwt1, self.keypair).should.be.true
-        service.verify_jwt(jwt2, self.keypair).should.be.true
+        jwts.make_jwt.when.called_with(123, self.keypair).should.throw(Exception)
+        jwts.make_jwt.when.called_with(123.456, self.keypair).should.throw(Exception)
+        jwts.make_jwt.when.called_with(['a', 'b'], self.keypair).should.throw(Exception)
+        jwts.make_jwt.when.called_with(lambda a: a, self.keypair).should.throw(Exception)
 
     def test_jwt_wrong_key(self):
         new_keypair = service.create_secret_key()
         msg = 'bad jwt here❌'
 
-        service.verify_jwt(
-            service.make_jwt(
+        jwts.verify_jwt.when.called_with(
+            jwts.make_jwt(
                 {'badmsg': msg},
                 self.keypair
             ),
             new_keypair
-        ).should.be.false
-        service.verify_jwt(
-            service.make_jwt(
+        ).should.throw(exceptions.InvalidSignatureError)
+        jwts.verify_jwt.when.called_with(
+            jwts.make_jwt(
                 {'badmsg': msg},
                 new_keypair
             ),
             self.keypair
-        ).should.be.false
+        ).should.throw(exceptions.InvalidSignatureError)
 
-    def test_jwt_bad_header_wrong_value(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+    def test_jwt_bad_header_invalid_typ(self):
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         header = json.dumps({
             'typ': 'JWT',
             'alg': 'NONE',
         })
         bad_jwt = '.'.join([utils.base64url_encode(header).decode('utf-8')] + jwt.split('.')[1:])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_jwt_bad_header_invalid_alg(self):
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
+        header = json.dumps({
+            'typ': 'JWT',
+            'alg': 'NONE',
+        })
+        bad_jwt = '.'.join([utils.base64url_encode(header).decode('utf-8')] + jwt.split('.')[1:])
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_jwt_bad_header_extra_keys(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         header = json.dumps({
             'typ': 'JWT',
             'alg': 'ES256',
             'bogosity': True,
         })
         bad_jwt = '.'.join([utils.base64url_encode(header).decode('utf-8')] + jwt.split('.')[1:])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_jwt_bad_header_not_json(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         bad_jwt = '.'.join(
             [utils.base64url_encode('woo-hoo! we just do what we want!!').decode('utf-8')] +
             jwt.split('.')[1:]
         )
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_jwt_malformed_header(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
-        good_header = json.dumps(service.REQUIRED_JWT_HEADER_ELEMENTS)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
+        good_header = jwts.MINIMAL_JWT_HEADER_JSON
         header = utils.base64url_encode(good_header).decode('utf-8')[:-4]
         bad_jwt = '.'.join([header] + jwt.split('.')[:2])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_injected_issuer_claim(self):
         with_iss = {
@@ -179,67 +186,79 @@ class TestJWT(TestCase):
         self._create_and_verify_good_jwt(with_iss)
 
     def test_jwt_invalid_base64(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         header = 'a'
         bad_jwt = '.'.join([header] + jwt.split('.')[:2])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_jwt_malformed_payload(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         header, payload, signature = jwt.split('.')
         payload = payload[:-8]
         bad_jwt = '.'.join([header, payload, signature])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        jwts.verify_jwt.when.called_with(bad_jwt, self.keypair).should.throw(Exception)
 
     def test_jwt_missing_signature(self):
-        jwt = service.make_jwt({'message': 'hi'}, self.keypair)
+        jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
         bad_jwt = '.'.join(jwt.split('.')[:2])
-        service.verify_jwt(bad_jwt, self.keypair).should.be.false
+        (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
+            .should.throw(exceptions.InvalidFormatError))
 
     def test_not_quite_expired_then_expired(self):
         now = int(time.time())
-        logger.debug('now=%s', now)
-        jwt = service.make_jwt({'message': 'hi', 'exp': (now + 3)}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.true
+        logger.debug('pre-sleep now=%s', now)
+        exp = (now - jwts.TOKEN_EXPIRATION_LEEWAY_SEC) + 2
+        jwt = jwts.make_jwt({'message': 'hi', 'exp': exp}, self.keypair)
+        jwts.verify_jwt(jwt, self.keypair).should.be.true
 
-        time.sleep(6)
-        service.verify_jwt(jwt, self.keypair).should.be.false
+        time.sleep(jwts.TOKEN_EXPIRATION_LEEWAY_SEC + 4)
+        logger.debug('post-sleep now=%s', int(time.time()))
+        (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+            .should.throw(exceptions.InvalidClaimsError))
 
     def test_expired(self):
         now = int(time.time())
         logger.debug('now=%s', now)
-        jwt = service.make_jwt({'message': 'hi', 'exp': (now - 1)}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.false
+        exp = now - (jwts.TOKEN_EXPIRATION_LEEWAY_SEC + 1)
+        jwt = jwts.make_jwt({'message': 'hi', 'exp': exp}, self.keypair)
+        (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+            .should.throw(exceptions.InvalidClaimsError))
 
     def test_use_before_in_future(self):
         now = int(time.time())
         logger.debug('now=%s', now)
-        jwt = service.make_jwt({'message': 'hi', 'nbf': (now + (3*60))}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.false
+        jwt = jwts.make_jwt({'message': 'hi', 'nbf': (now + (3*60))}, self.keypair)
+        (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+            .should.throw(exceptions.InvalidClaimsError))
 
     def test_valid_nonce(self):
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
-        jwt = service.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.true
-        # service.verify_jwt(jwt, self.keypair).should.be.false  # TODO
+        jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
+        jwts.verify_jwt(jwt, self.keypair).should.be.true
+        # TODO:
+        # (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+        #    .should.throw(exceptions.InvalidClaimsError))
 
     def test_invalid_nonce(self):
         nonce = '002' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
-        jwt = service.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.false
+        jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
+        (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+            .should.throw(exceptions.InvalidClaimsError))
 
     def test_expired_nonce(self):
         now = int(time.time())
         then = now-(1*24*60*60)
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(then)) + '123456'
         logger.debug('nonce=%s', nonce)
-        jwt = service.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
-        service.verify_jwt(jwt, self.keypair).should.be.false
+        jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
+        (jwts.verify_jwt.when.called_with(jwt, self.keypair)
+            .should.throw(exceptions.InvalidClaimsError))
 
 
-class TestKnownJWTokens(TestCase):
+class TestKnownJWTs(TestCase):
     def setUp(self):
         self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
@@ -302,7 +321,7 @@ class TestKnownJWTokens(TestCase):
         ]
 
         for token in good_tokens:
-            service.verify_jwt(token, self.keypair).should.be.true
+            jwts.verify_jwt(token, self.keypair).should.be.true
 
     def test_previously_generated_bad_vectors(self):
         bad_tokens = [
@@ -317,4 +336,5 @@ class TestKnownJWTokens(TestCase):
         ]
 
         for token in bad_tokens:
-            service.verify_jwt(token, self.keypair).should.be.false
+            (jwts.verify_jwt.when.called_with(token, self.keypair)
+                .should.throw(exceptions.InvalidSignatureError))

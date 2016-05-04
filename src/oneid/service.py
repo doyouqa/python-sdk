@@ -2,15 +2,13 @@
 
 """
 Provides useful functions for interacting with the oneID API, including creation of
-keys, JWTs, etc.
+keys, etc.
 """
 from __future__ import unicode_literals
 
 import os
-import json
 import base64
 import re
-import time
 import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -20,23 +18,13 @@ from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
 
 from .keychain import Keypair
+from . import jwts
 from . import utils
 
 logger = logging.getLogger(__name__)
 
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
-
-B64_URLSAFE_RE = '[0-9a-zA-Z-_]+'
-JWT_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
-
-REQUIRED_JWT_HEADER_ELEMENTS = {
-    'typ': 'JWT',
-    'alg': 'ES256',
-}
-TOKEN_EXPIRATION_TIME_SEC = (1*60*60)  # one hour
-TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
-TOKEN_EXPIRATION_LEEWAY_SEC = (0)      # not really needed
 
 
 class ServiceCreator(object):
@@ -163,20 +151,12 @@ class BaseService(object):
         url = self._format_url(endpoint, **kwargs)
 
         if kwargs.get('body_args'):
-            additional_claims = dict()
-            for body in kwargs.get('body_args'):
-                additional_claims[body] = kwargs[body]
-
-            payload = self.session.create_jwt_payload(**additional_claims)
-            jwt = '{payload}.{signature}'.format(
-                payload=payload,
-                signature=utils.to_string(self.credentials.keypair.sign(payload))
-            )
+            claims = {arg: kwargs[arg] for arg in kwargs.get('body_args')}
+            jwt = jwts.make_jwt(claims, self.credentials.keypair)
             return self.session.service_request(http_method, url, body=jwt)
         else:
             # Replace the entire body with kwargs['body'] (if present)
-            return self.session.service_request(http_method, url,
-                                                body=kwargs.get('body'))
+            return self.session.service_request(http_method, url, body=kwargs.get('body'))
 
 
 def create_secret_key(output=None):
@@ -249,112 +229,3 @@ def decrypt_attr_value(attr_ct, aes_key):
     )
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ct) + decryptor.finalize()
-
-
-def make_jwt(claims, authorized_keypair):
-    """
-    Convert claims into JWT
-
-    :type claims: Dictionary that will be converted to json
-    :param claims: payload data
-    :param authorized_key: :py:class:`~oneid.keychain.Keypair` to sign the request
-    :return: JWT
-    """
-    alg = {'alg': 'ES256',
-           'typ': 'JWT'}
-    alg_serialized = json.dumps(alg)
-    alg_b64 = utils.to_string(utils.base64url_encode(alg_serialized))
-
-    claims_serialized = json.dumps(claims) if isinstance(claims, dict) else claims
-    claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
-
-    payload = '{alg}.{claims}'.format(alg=alg_b64, claims=claims_b64)
-
-    signature = utils.to_string(authorized_keypair.sign(payload))
-
-    return '{payload}.{sig}'.format(payload=payload, sig=signature)
-
-
-def verify_jwt(jwt, verification_keypair=None):  # TODO: require verification_token
-    """
-    Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Token`
-
-    :param jwt: JWT to verify and convert
-    :type jwt: str or bytes
-    :param verification_token: :py:class:`~oneid.keychain.Token` to verify the JWT
-    :type param: :py:class:`~oneid.keychain.Token`
-    """
-    jwt = utils.to_string(jwt)
-    if not re.match(JWT_RE, jwt):
-        logger.debug('Given JWT doesnt match pattern: %s', jwt)
-        return False
-
-    try:
-        header, payload, signature = [utils.base64url_decode(p) for p in jwt.split('.')]
-    except:
-        logger.debug('invalid message, error splitting/decoding: %s', jwt, exc_info=True)
-        return False
-
-    if not _verify_jwt_header(utils.to_string(header)):
-        return False
-
-    message = _verify_jwt_claims(utils.to_string(payload))
-
-    if message is None:
-        logger.debug('no message: %s', message)
-        return False
-
-    if verification_keypair:
-        try:
-            verification_keypair.verify(*(jwt.rsplit('.', 1)))
-        except:
-            logger.debug('invalid signature, header=%s, message=%s', header, message)
-            return False
-
-    return message
-
-
-def _verify_jwt_header(header):
-    try:
-        header = json.loads(header)
-    except ValueError:
-        logger.debug('invalid header, not valid json: %s', header)
-        return False
-    except Exception:  # pragma: no cover
-        logger.debug('unknown error verifying header: %s', header, exc_info=True)
-        return False
-
-    for key, value in REQUIRED_JWT_HEADER_ELEMENTS.items():
-        if header.pop(key, None) != value:
-            logger.debug('invalid header, missing or incorrect %s: %s', key, header)
-            return False
-
-    if len(header) > 0:
-        logger.debug('invalid header, extra elements: %s', header)
-        return False
-
-    return True
-
-
-def _verify_jwt_claims(payload):
-    try:
-        message = json.loads(payload)
-        now = int(time.time())
-
-        if 'exp' in message and (int(message['exp']) + TOKEN_EXPIRATION_LEEWAY_SEC) < now:
-            logger.warning('Expired token, exp=%s, now=%s', message['exp'], now)
-            return None
-
-        if 'nbf' in message and (int(message['nbf']) - TOKEN_NOT_BEFORE_LEEWAY_SEC) > now:
-            logger.warning('Early token, nbf=%s, now=%s', message['nbf'], now)
-            return None
-
-        if 'jti' in message and not utils.verify_and_burn_nonce(message['jti']):
-            logger.warning('Invalid nonce: %s', message['jti'])
-            return None
-
-        return message
-
-    except:
-        logger.debug('unknown error verifying payload: %s', payload, exc_info=True)
-        return None
