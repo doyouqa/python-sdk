@@ -46,6 +46,7 @@ coverage*.xml
 *,cover
 coverage
 .idea/
+*junit.xml
 
 # Translations
 *.mo
