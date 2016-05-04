@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 
 import time
 import base64
+import uuid
 import json
 import logging
 
@@ -171,7 +172,7 @@ class TestJWTs(TestCase):
 
     def test_jwt_malformed_header(self):
         jwt = jwts.make_jwt({'message': 'hi'}, self.keypair)
-        good_header = jwts.MINIMAL_JWT_HEADER_JSON
+        good_header = json.dumps(jwts.MINIMAL_JWT_HEADER)
         header = utils.base64url_encode(good_header).decode('utf-8')[:-4]
         bad_jwt = '.'.join([header] + jwt.split('.')[:2])
         (jwts.verify_jwt.when.called_with(bad_jwt, self.keypair)
@@ -338,3 +339,221 @@ class TestKnownJWTs(TestCase):
         for token in bad_tokens:
             (jwts.verify_jwt.when.called_with(token, self.keypair)
                 .should.throw(exceptions.InvalidSignatureError))
+
+
+class TestJWSs(TestCase):
+    def setUp(self):
+        self.keypairs = []
+
+        for _ in range(3):
+            key = service.create_secret_key()
+            key.identity = str(uuid.uuid4())
+            self.keypairs.append(key)
+
+    def tearDown(self):
+        pass
+
+    def _create_and_verify_good_jws(self, claims, keypairs=None):
+        keypairs = keypairs or self.keypairs
+        jws = jwts.make_jws(claims, keypairs)
+        jws.should.be.a(str)
+
+        verifications = [
+            jwts.verify_jws(jws, keypairs),
+            jwts.verify_jws(jws),
+            jwts.verify_jws(utils.to_bytes(jws)),
+        ]
+
+        for verification in verifications:
+            verification.should.be.truthy
+
+            for claim in claims:
+                verification.should.have.key(claim).equal_to(claims[claim])
+
+    def test_jws_sunny_day(self):
+        for msg in MSGS:
+            logger.debug('testing jws for "%s"', msg[:1000])
+            self._create_and_verify_good_jws({'message': msg})
+
+    def test_single_key(self):
+        self._create_and_verify_good_jws({'hello': 7}, self.keypairs[0])
+
+    def test_missing_keypair_identity(self):
+        keypair = service.create_secret_key()
+        jwts.make_jws.when.called_with({'hi': 7}, keypair).should.throw(exceptions.InvalidKeyError)
+
+    def test_extend_jws_signatures_from_jwt(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+        jws = jwts.extend_jws_signatures(jwt, self.keypairs[1:], self.keypairs[0].identity)
+        jwts.verify_jws(jws, self.keypairs).should.be.a(dict)
+
+    def test_verify_jws_from_jwt(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+        jwts.verify_jws(jwt, self.keypairs[0]).should.be.a(dict)
+
+    def test_extend_jws_signatures_from_jwt_single_key(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+        jws = jwts.extend_jws_signatures(jwt, self.keypairs[1], self.keypairs[1].identity)
+        jwts.verify_jws(jws, self.keypairs[:2]).should.be.a(dict)
+
+    def test_extend_jws_signatures_from_jwt_no_kid(self):
+        keypair = service.create_secret_key()
+        kid = str(uuid.uuid4())
+
+        jwt = jwts.make_jwt({'a': 1}, keypair)
+        jws = jwts.extend_jws_signatures(jwt, self.keypairs, kid)
+
+        keypair.identity = kid
+        keypairs = self.keypairs + [keypair]
+        jwts.verify_jws(jws, keypairs).should.be.a(dict)
+
+    def test_extend_jws_missing_keypair_identity(self):
+        keypair = service.create_secret_key()
+        jws = jwts.make_jws({'a': 1}, self.keypairs[0])
+        (jwts.extend_jws_signatures.when.called_with(jws, keypair)
+            .should.throw(exceptions.InvalidKeyError))
+
+    def test_extend_jws_signatures_from_jws(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+        jws = jwts.extend_jws_signatures(jws, self.keypairs[2:])
+        jwts.verify_jws(jws, self.keypairs).should.be.a(dict)
+
+    def test_get_jws_key_ids(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs)
+        kids = [keypair.identity for keypair in self.keypairs]
+        jwts.get_jws_key_ids(jws).should.equal(kids)
+
+    def test_get_jws_key_invalid_jws(self):
+        (jwts.get_jws_key_ids.when.called_with("not a jws")
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_jwt_verify_with_mult_sigs(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+
+        jwts.verify_jws.when.called_with(jwt, self.keypairs[:2]).should.throw(Exception)
+
+    def test_invalid_message_not_a_jws(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+        jws_dict = json.loads(jws)
+
+        no_payload = {k: v for k, v in jws_dict.items() if k != 'payload'}
+        (jwts.verify_jws.when.called_with(json.dumps(no_payload), self.keypairs[:2])
+            .should.throw(exceptions.InvalidFormatError))
+
+        no_sigs = {k: v for k, v in jws_dict.items() if k != 'signatures'}
+        (jwts.verify_jws.when.called_with(json.dumps(no_sigs), self.keypairs[:2])
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_jwt_verify_with_redundant_keypairs(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[:1] * 2)
+            .should.throw(exceptions.InvalidKeyError))
+
+    def test_missing_typ_in_jws_header(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        header = json.loads(utils.to_string(
+            utils.base64url_decode(jws['signatures'][0]['protected'])
+        ))
+        del header['typ']
+        jws['signatures'][0]['protected'] = utils.to_string(
+            utils.base64url_encode(json.dumps(header))
+        )
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_invalid_typ_in_jws_header(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        header = json.loads(utils.to_string(
+            utils.base64url_decode(jws['signatures'][0]['protected'])
+        ))
+        header['typ'] = 'bog'
+        jws['signatures'][0]['protected'] = utils.to_string(
+            utils.base64url_encode(json.dumps(header))
+        )
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_missing_alg_in_jws_header(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        header = json.loads(utils.to_string(
+            utils.base64url_decode(jws['signatures'][0]['protected'])
+        ))
+        del header['alg']
+        jws['signatures'][0]['protected'] = utils.to_string(
+            utils.base64url_encode(json.dumps(header))
+        )
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidAlgorithmError))
+
+    def test_invalid_alg_in_jws_header(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        header = json.loads(utils.to_string(
+            utils.base64url_decode(jws['signatures'][0]['protected'])
+        ))
+        header['alg'] = 'bog'
+        jws['signatures'][0]['protected'] = utils.to_string(
+            utils.base64url_encode(json.dumps(header))
+        )
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidAlgorithmError))
+
+    def test_missing_kid_in_jws_header(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        header = json.loads(utils.to_string(
+            utils.base64url_decode(jws['signatures'][0]['protected'])
+        ))
+        del header['kid']
+        jws['signatures'][0]['protected'] = utils.to_string(
+            utils.base64url_encode(json.dumps(header))
+        )
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidFormatError))
+
+    def test_jws_verify_with_wrong_keypair(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
+
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[1:2])
+            .should.throw(exceptions.KeySignatureMismatch))
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[1:2], verify_all=False)
+            .should.throw(exceptions.KeySignatureMismatch))
+
+    def test_jws_verify_invalid_signature(self):
+        jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
+        jws['signatures'][0]['signature'] = 'bogus'
+        (jwts.verify_jws.when.called_with(json.dumps(jws), self.keypairs[:1])
+            .should.throw(exceptions.InvalidSignatureError))
+
+    def test_jws_verify_no_signatures(self):
+        jws = jwts.make_jws({'a': 1}, [])
+
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[:2])
+            .should.throw(exceptions.InvalidSignatureError))
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[:2], verify_all=False)
+            .should.throw(exceptions.InvalidSignatureError))
+
+    def test_jws_verify_not_enough_signatures(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
+
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[:2])
+            .should.throw(exceptions.KeySignatureMismatch))
+
+    def test_jws_verify_too_many_signatures(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[:1])
+            .should.throw(exceptions.KeySignatureMismatch))
+
+    def test_jws_verify_mismatched_signatures(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+
+        # this test requires equal-length arrays, with some overlap
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[1:3])
+            .should.throw(exceptions.KeySignatureMismatch))
+        (jwts.verify_jws.when.called_with(jws, self.keypairs[1:3], verify_all=False)
+            .should_not.throw(Exception))
+
+    def test_jws_verify_any_signature_is_ok(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
+
+        jwts.verify_jws(jws, self.keypairs[:2], verify_all=False).should.have.key('a')
