@@ -26,7 +26,7 @@ Now we can create our "hello world" message and sign it.
     signature = my_key.sign(message)
     print(signature)
 
-To verify the signature, we need to pass in the message and the signature back into the Token.
+To verify the signature, we need to pass in the message and the signature back into the Keypair.
 
 ..  code-block:: python
 
@@ -41,6 +41,3 @@ something else like ``hello universe``.
 
     # raises InvalidSignature
     my_key.verify('hello universe', signature)
-
-
-

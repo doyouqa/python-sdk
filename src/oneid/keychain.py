@@ -1,6 +1,6 @@
 
 """
-Token is short for key pair, used to sign and verify signatures
+A Keypair is used to sign and verify signatures
 
 Keys should be kept in a secure storage enclave.
 """
@@ -39,13 +39,13 @@ class Credentials(object):
     :ivar identity: UUID of the identity.
     :ivar keypair: :class:`~oneid.keychain.Keypair` instance.
     """
-    def __init__(self, uuid, keypair):
+    def __init__(self, identity, keypair):
         """
 
         :param identity: uuid of the entity
         :param keypair: :py:class:`~oneid.keychain.Keypair` instance
         """
-        self.id = uuid
+        self.id = identity
 
         if not isinstance(keypair, Keypair):
             raise ValueError('keypair must be a oneid.keychain.Keypair instance')
@@ -54,15 +54,15 @@ class Credentials(object):
 
 
 class ProjectCredentials(Credentials):
-    def __init__(self, uuid, keypair, encryption_key):
+    def __init__(self, project_id, keypair, encryption_key):
         """
         Adds an ecryption key
 
-        :param uuid: oneID project UUID
+        :param project_id: oneID project UUID
         :param keypair: :py:class:`~oneid.keychain.Keypair`
         :param encryption_key: AES key used to encrypt messages
         """
-        super(ProjectCredentials, self).__init__(uuid, keypair)
+        super(ProjectCredentials, self).__init__(project_id, keypair)
         self._encryption_key = encryption_key
 
     def encrypt(self, plain_text):
@@ -220,7 +220,7 @@ class Keypair(object):
         Given a DER-format public key, convert it into a token to
         validate signatures
         :param public_key: der formatted key
-        :return: :class:`~oneid.keychain.Keypair` instace
+        :return: :class:`~oneid.keychain.Keypair` instance
         """
         pub = load_der_public_key(public_key, default_backend())
 
@@ -235,9 +235,9 @@ class Keypair(object):
         :type payload: String
         :param payload: message that was signed and needs verified
         :type signature: Base64 URL Safe
-        :param signature: Signature that can verify the senders
-         identity and payload
+        :param signature: Signature that can verify the sender\'s identity and payload
         :return:
+
         """
         raw_sig = utils.base64url_decode(signature)
         sig_r_bin = raw_sig[:len(raw_sig)//2]
@@ -247,8 +247,7 @@ class Keypair(object):
         sig_s = unpack_bytes(sig_s_bin)
 
         sig = encode_dss_signature(sig_r, sig_s)
-        signer = self.public_key.verifier(sig,
-                                          ec.ECDSA(hashes.SHA256()))
+        signer = self.public_key.verifier(sig, ec.ECDSA(hashes.SHA256()))
         signer.update(utils.to_bytes(payload))
         return signer.verify()
 

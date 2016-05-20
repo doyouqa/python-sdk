@@ -7,5 +7,7 @@ API
     keypair
     service
     session
+    jwts
     auth
     utils
+    exceptions

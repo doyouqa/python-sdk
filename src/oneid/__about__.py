@@ -11,10 +11,10 @@ __summary__ = ("oneID-connect is an identity & authentication "
 
 __uri__ = "https://github.com/OneID/oneID-connect-python"
 
-__version__ = "0.9.5"
+__version__ = "0.10.0"
 
 __author__ = "oneID Inc."
 __email__ = "support@oneID.com"
 
 __license__ = "Apache License, Version 2.0"
-__copyright__ = "Copyright 2012-2015 {0}".format(__author__)
+__copyright__ = "Copyright 2012-2016 {0}".format(__author__)
