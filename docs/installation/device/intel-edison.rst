@@ -8,11 +8,13 @@ After you've flashed and configured your Intel Edison, we can setup the Intel Ed
 
 
 * Open the base-feeds config file:
+
 .. code-block:: console
 
     vi /etc/opkg/base-feeds.conf
 
 * Add the following repositories:
+
 .. code-block:: console
 
     src/gz all http://repo.opkg.net/edison/repo/all
@@ -20,16 +22,19 @@ After you've flashed and configured your Intel Edison, we can setup the Intel Ed
     src/gz core2-32 http://repo.opkg.net/edison/repo/core2-32
 
 * Update opkg:
+
 .. code-block:: console
 
     opkg update
 
 * Install python pip:
+
 .. code-block:: console
 
     opkg install python-pip
 
 * Install oneID-py:
+
 .. code-block:: console
 
     pip install oneid-connect
