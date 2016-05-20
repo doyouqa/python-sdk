@@ -220,7 +220,7 @@ class Keypair(object):
         Given a DER-format public key, convert it into a token to
         validate signatures
         :param public_key: der formatted key
-        :return: :class:`~oneid.keychain.Keypair` instace
+        :return: :class:`~oneid.keychain.Keypair` instance
         """
         pub = load_der_public_key(public_key, default_backend())
 
@@ -235,9 +235,9 @@ class Keypair(object):
         :type payload: String
         :param payload: message that was signed and needs verified
         :type signature: Base64 URL Safe
-        :param signature: Signature that can verify the senders
-         identity and payload
+        :param signature: Signature that can verify the sender\'s identity and payload
         :return:
+
         """
         raw_sig = utils.base64url_decode(signature)
         sig_r_bin = raw_sig[:len(raw_sig)//2]

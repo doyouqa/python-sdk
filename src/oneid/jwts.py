@@ -77,11 +77,11 @@ def verify_jwt(jwt, keypair=None):
     :type keypair: :py:class:`~oneid.keychain.Keypair`
     :returns: claims
     :rtype: dict
-    :raises :py:class:`InvalidFormatError`: if not a valid JWT
-    :raises :py:class:`InvalidAlgorithmError`: if unsupported algorithm specified
-    :raises :py:class:`InvalidClaimsError`: if missing or invalid claims, including expiration,
-        re-used nonce, etc.
-    :raises :py:class:`InvalidSignatureError`: if signature is not valid
+    :raises: :py:class:`~oneid.exceptions.InvalidFormatError` if not a valid JWT
+    :raises: :py:class:`~oneid.exceptions.InvalidAlgorithmError` if unsupported algorithm specified
+    :raises: :py:class:`~oneid.exceptions.InvalidClaimsError` if missing or invalid claims,
+        including expiration, re-used nonce, etc.
+    :raises: :py:class:`~oneid.exceptions.InvalidSignatureError` if signature is not valid
     """
     jwt = utils.to_string(jwt)
     if not re.match(COMPACT_JWS_RE, jwt):
@@ -113,7 +113,7 @@ def make_jws(raw_claims, keypairs):
 
     :param raw_claims: payload data that will be converted to json
     :type raw_claims: dict
-    :param keypairs: :py:class:`~oneid.keychain.Keypair`s to sign the request with
+    :param keypairs: :py:class:`~oneid.keychain.Keypair`\s to sign the request with
     :type keypairs: list
     :return: JWS
     """
@@ -157,7 +157,7 @@ def extend_jws_signatures(jws, keypairs, default_jwt_kid=None):
 
     :param jws: existing JWS (Compact or JSON) or JWT
     :type jws: str
-    :param keypairs: additional :py:class:`~oneid.keychain.Keypair`s to sign the request with
+    :param keypairs: additional :py:class:`~oneid.keychain.Keypair`\s to sign the request with
     :type keypairs: list
     :param default_jwt_kid: (optional) value for 'kid' header field if passing a JWT without one
     :type default_jwt_kid: str
@@ -199,7 +199,7 @@ def get_jws_key_ids(jws):
     :type jws: str or bytes
     :returns: key IDs
     :rtype: list
-    :raises :py:class:`InvalidFormatError`: if not a valid JWS
+    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
     """
     try:
         jws = json.loads(utils.to_string(jws))
@@ -213,13 +213,13 @@ def get_jws_key_ids(jws):
 def verify_jws(jws, keypairs=None, verify_all=True):
     """
     Convert a JWS back to it's claims, if validated by a set of
-    required :py:class:`~oneid.keychain.Keypair`s
+    required :py:class:`~oneid.keychain.Keypair`\s
 
     :param jws: JWS to verify and convert
     :type jws: str or bytes
-    :param keypairs: :py:class:`~oneid.keychain.Keypair`s to verify the JWS with.
+    :param keypairs: :py:class:`~oneid.keychain.Keypair`\s to verify the JWS with.
                     Must include one for each specified in the JWS headers' `kid` values.
-    :type keypairs: list of :py:class:`~oneid.keychain.Keypair`
+    :type keypairs: list
     :param verify_all: If True (default), all keypairs must validate a signature.
                     If False, only one needs to.
                     If any fail to validate, the JWS is still not validated.
@@ -228,11 +228,12 @@ def verify_jws(jws, keypairs=None, verify_all=True):
     :type verify_all: bool
     :returns: claims
     :rtype: dict
-    :raises :py:class:`InvalidFormatError`: if not a valid JWS
-    :raises :py:class:`InvalidAlgorithmError`: if unsupported algorithm specified
-    :raises :py:class:`InvalidClaimsError`: if missing or invalid claims, including expiration,
-        re-used nonce, etc.
-    :raises :py:class:`InvalidSignatureError`: if any relevant signature is not valid
+    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
+    :raises: :py:class:`~oneid.exceptions.InvalidAlgorithmError`: if unsupported algorithm specified
+    :raises: :py:class:`~oneid.exceptions.InvalidClaimsError`: if missing or invalid claims,
+        including expiration, re-used nonce, etc.
+    :raises: :py:class:`~oneid.exceptions.InvalidSignatureError`: if any relevant signature
+        is not valid
     """
 
     if keypairs and not isinstance(keypairs, collections.Iterable):
