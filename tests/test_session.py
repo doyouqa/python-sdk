@@ -1,4 +1,4 @@
-import json
+
 import logging
 
 import unittest
@@ -7,7 +7,7 @@ import sure  # noqa
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, exceptions
+from oneid import session, service, keychain, jwts, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -114,241 +114,173 @@ class TestBaseSession(unittest.TestCase):
 
 class TestDeviceSession(unittest.TestCase):
     def setUp(self):
-        mock_id_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
-        self.id_credentials = keychain.Credentials('device-id', mock_id_keypair)
+        self.mock_id_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.id_key_bytes
+        )
+        self.mock_id_keypair.identity = 'device-id'
 
-        mock_app_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.app_key_bytes)
-        self.app_credentials = keychain.Credentials('device-id', mock_app_keypair)
+        self.id_credentials = keychain.Credentials(
+            self.mock_id_keypair.identity,
+            self.mock_id_keypair
+        )
 
-        mock_proj_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
-        self.proj_credentials = keychain.Credentials('proj-id', mock_proj_keypair)
+        self.mock_proj_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.proj_key_bytes
+        )
+        self.mock_proj_keypair.identity = 'proj-id'
 
-        mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
-        self.oneid_credentials = keychain.Credentials('oneid-id', mock_oneid_keypair)
+        self.proj_credentials = keychain.Credentials(
+            self.mock_proj_keypair.identity,
+            self.mock_proj_keypair
+        )
 
-        mock_resetA_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_oneid_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.oneid_key_bytes
+        )
+        self.mock_oneid_keypair.identity = 'oneid-id'
+
+        self.oneid_credentials = keychain.Credentials(
+            self.mock_oneid_keypair.identity,
+            self.mock_oneid_keypair
+        )
+
+        self.mock_resetA_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_A_bytes
         )
-        self.resetA_credentials = keychain.Credentials('resetA-id', mock_resetA_keypair)
+        self.mock_resetA_keypair.identity = 'resetA-id'
 
-        mock_resetB_keypair = keychain.Keypair.from_secret_pem(
+        self.resetA_credentials = keychain.Credentials(
+            self.mock_resetA_keypair.identity,
+            self.mock_resetA_keypair
+        )
+
+        self.mock_resetB_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_B_bytes
         )
-        self.resetB_credentials = keychain.Credentials('resetB-id', mock_resetB_keypair)
+        self.mock_resetB_keypair.identity = 'resetB-id'
 
-        mock_resetC_keypair = keychain.Keypair.from_secret_pem(
+        self.resetB_credentials = keychain.Credentials(
+            self.mock_resetB_keypair.identity,
+            self.mock_resetB_keypair
+        )
+
+        self.mock_resetC_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_C_bytes
         )
-        self.resetC_credentials = keychain.Credentials('resetC-id', mock_resetC_keypair)
+        self.mock_resetC_keypair.identity = 'resetC-id'
+
+        self.resetC_credentials = keychain.Credentials(
+            self.mock_resetC_keypair.identity,
+            self.mock_resetC_keypair
+        )
 
     def test_prepare_message(self):
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials)
-        message = sess.prepare_message()
+        sess = session.DeviceSession(self.id_credentials)
+        jws = sess.prepare_message(a=1)
 
-        self.assertIn('payload', message)
-        self.assertIn('app_signature', message)
-        self.assertIn('id_signature', message)
+        claims = jwts.verify_jws(jws, self.id_credentials.keypair)
 
-    def test_verify_missing_signature(self):
-        message_a = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                     'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                        'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                        '_7gUPIwmBQ'}
+        claims.should.be.a(dict)
+        claims.should.have.key('a').equal_to(1)
 
-        message_b = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                                'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                                'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                     'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
-                                          'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
-                                          'GGHWrwy_6KWMKv8ZkA'}
+    def test_verify_message(self):
+        message = jwts.make_jws({'b': 2}, [self.mock_proj_keypair, self.mock_oneid_keypair])
 
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials)
+        sess = session.DeviceSession(
+            self.id_credentials, self.proj_credentials, self.oneid_credentials
+        )
 
-        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_a))
-        self.assertRaises(KeyError, sess.verify_message, json.dumps(message_b))
+        claims = sess.verify_message(message)
 
-    def test_verify_missing_payload(self):
-        message = {'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
-                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
-                                        'GGHWrwy_6KWMKv8ZkA',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ'}
+        claims.should.be.a(dict)
+        claims.should.have.key('b').equal_to(2)
 
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials)
+    def test_verify_message_with_rekey(self):
+        message = jwts.make_jws({'c': 3}, [
+            self.mock_proj_keypair, self.mock_oneid_keypair,
+            self.mock_resetA_keypair,
+            self.mock_resetB_keypair,
+            self.mock_resetC_keypair,
+        ])
 
-        self.assertRaises(KeyError, sess.verify_message, json.dumps(message))
+        sess = session.DeviceSession(
+            self.id_credentials, self.proj_credentials, self.oneid_credentials,
+        )
 
-    def test_verify_project_signature(self):
-        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                   'project_signature': 'b2z26vlRRpgVXl8UpgAl0x28zdHkrdkcJG'
-                                        'JNoC24NdGx5hFPo9PQqx7kW0Qh-4dTgb_B'
-                                        'GGHWrwy_6KWMKv8ZkA',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ'}
-        data = json.dumps(message)
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.proj_credentials)
-        sess.verify_message(data)
+        claims = sess.verify_message(message, rekey_credentials=[
+            self.resetA_credentials,
+            self.resetB_credentials,
+            self.resetC_credentials,
+        ])
 
-    def test_verify_rekey_signatures(self):
-        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ',
-                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
-                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
-                                        'r4lKsePIR6s-VA',
-                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
-                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
-                                        'Y6VrQoLzN_Vesg',
-                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
-                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
-                                        'C0yiDZKSPUXtQ',
-                                        ]
+        claims.should.be.a(dict)
+        claims.should.have.key('c').equal_to(3)
 
-                   }
-        data = json.dumps(message)
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.proj_credentials)
+    def test_verify_message_with_rekey_keys_only(self):
+        message = jwts.make_jws({'c': 4}, [
+            self.mock_resetA_keypair,
+            self.mock_resetB_keypair,
+            self.mock_resetC_keypair,
+        ])
 
-        sess.verify_message(data, rekey_credentials=[self.resetA_credentials,
-                                                     self.resetB_credentials,
-                                                     self.resetC_credentials])
+        sess = session.DeviceSession(
+            self.id_credentials, self.proj_credentials, self.oneid_credentials,
+        )
 
-    def test_invalid_rekey_signature(self):
-        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ',
-                   'rekey_signatures': ['JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
-                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGp'
-                                        'mC0yiDZKSPUXtQ',
-                                        'qj0IBKcJTiqBTxoP193wZ5hkwgaCDnLswSBB'
-                                        'sYXwQ0iOISmofCeZBYA_ZEo-F2k5AbBrvGBu'
-                                        'ErG4FhkeQELYZw',
-                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
-                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
-                                        'Y6VrQoLzN_Vesg',
-                                        ]
+        claims = sess.verify_message(message, rekey_credentials=[
+            self.resetA_credentials,
+            self.resetB_credentials,
+            self.resetC_credentials,
+        ])
 
-                   }
-
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.proj_credentials)
-
-        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
-                          rekey_credentials=[self.resetA_credentials,
-                                             self.resetB_credentials,
-                                             self.resetC_credentials])
-
-    def test_missing_rekey_signature(self):
-        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ',
-                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
-                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
-                                        'r4lKsePIR6s-VA',
-                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
-                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
-                                        'Y6VrQoLzN_Vesg',
-                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ',
-                                        ]
-
-                   }
-
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.proj_credentials)
-
-        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
-                          rekey_credentials=[self.resetA_credentials,
-                                             self.resetB_credentials,
-                                             self.resetC_credentials])
-
-    def test_missing_rekey_credential(self):
-        message = {'payload': 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJ'
-                              'pc3MiOiAib25laWQiLCAianRpIjogIjAwMTIwMTYtMDE'
-                              'tMjBUMDA6NDU6MzhabjlxSGN5In0=',
-                   'oneid_signature': '299qez5eIY1C0qC7GAYDN87LKxkMlQX_r1ESL3'
-                                      'eFIbWkoY_hvWOZKrBkynyzetCbWHTZyb1yHp9B'
-                                      '_7gUPIwmBQ',
-                   'rekey_signatures': ['X7z82ZQ0y1zC6w2x-vK4Aq1JwS4RwA3utwcb'
-                                        '7vIktEVXbd1e_4QAkJc3g1f00KlajIbZnvDd'
-                                        'r4lKsePIR6s-VA',
-                                        'YpbbBekxE-TvNwDpDI9sgzXt_iPFP9YAvfPa'
-                                        '-tf9v89ETQ-hDX0RnIZ-1Le4HfQXL-i4ij10'
-                                        'Y6VrQoLzN_Vesg',
-                                        'JAMqXv1QLWmMDPThcG-wXDml4K436gqzHYOQ'
-                                        'TkFtb5s6hdX3SuqMgijcQjuzUW6VU8K_8VGpm'
-                                        'C0yiDZKSPUXtQ',
-                                        ]
-
-                   }
-        sess = session.DeviceSession(self.id_credentials,
-                                     application_credentials=self.app_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.proj_credentials)
-
-        self.assertRaises(InvalidSignature, sess.verify_message, json.dumps(message),
-                          rekey_credentials=[self.resetA_credentials,
-                                             self.resetB_credentials])
+        claims.should.be.a(dict)
+        claims.should.have.key('c').equal_to(4)
 
 
 class TestServerSession(unittest.TestCase):
     def setUp(self):
         mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
-        self.server_credentials = keychain.Credentials('server', mock_keypair)
+        mock_keypair.identity = 'server'
+        self.server_credentials = keychain.Credentials(mock_keypair.identity, mock_keypair)
 
         mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
-        self.oneid_credentials = keychain.Credentials('oneID', mock_oneid_keypair)
+        mock_oneid_keypair.identity = 'oneID'
+        self.oneid_credentials = keychain.Credentials(
+            mock_oneid_keypair.identity, mock_oneid_keypair
+        )
 
         mock_project_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.proj_key_bytes
         )
-        self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
+        mock_project_keypair.identity = 'proj'
+        self.project_credentials = keychain.Credentials(
+            mock_project_keypair.identity, mock_project_keypair
+        )
         mock_resetA_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_A_bytes
         )
-        self.resetA_credentials = keychain.Credentials('resetA-id', mock_resetA_keypair)
+        mock_resetA_keypair.identity = 'resetA-id'
+        self.resetA_credentials = keychain.Credentials(
+            mock_resetA_keypair.identity, mock_resetA_keypair
+        )
 
         mock_resetB_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_B_bytes
         )
-        self.resetB_credentials = keychain.Credentials('resetB-id', mock_resetB_keypair)
+        mock_resetB_keypair.identity = 'resetB-id'
+        self.resetB_credentials = keychain.Credentials(
+            mock_resetB_keypair.identity, mock_resetB_keypair
+        )
 
         mock_resetC_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_C_bytes
         )
-        self.resetC_credentials = keychain.Credentials('resetC-id', mock_resetC_keypair)
+        mock_resetC_keypair.identity = 'resetC-id'
+        self.resetC_credentials = keychain.Credentials(
+            mock_resetC_keypair.identity, mock_resetC_keypair
+        )
 
-        self.oneid_response = 'eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpXVCJ9.eyJpc3Mi' \
-                              'OiAib25lSUQiLCAianRpIjogIjAwMTIwMTYtMDEtMjBUMjE6N' \
-                              'TE6MDZabDJ5dHlXIn0=.eEhASqRrKWPhzKVmSmeFZY5tGeTgo' \
-                              'nZS45qwnz0_4VJb_qM_kNnQqLp96mPZLUtKHVIeJqA77SqlVx' \
-                              'WsOB1J4g'
+        self.oneid_response = jwts.make_jwt({'a': 1}, mock_oneid_keypair)  # TODO: JWS with both
 
         self.fake_config = {
             'GLOBAL': {
@@ -388,16 +320,11 @@ class TestServerSession(unittest.TestCase):
 
         authenticated_data = sess.prepare_message(oneid_response=self.oneid_response)
 
-        authenticated_msg = json.loads(authenticated_data)
-
-        self.assertIn('payload', authenticated_msg)
-        self.assertIn('project_signature', authenticated_msg)
-        self.assertIn('oneid_signature', authenticated_msg)
-
-        self.project_credentials.keypair.verify(authenticated_msg['payload'],
-                                                authenticated_msg['project_signature'])
-        self.oneid_credentials.keypair.verify(authenticated_msg['payload'],
-                                              authenticated_msg['oneid_signature'])
+        keypairs = [
+            self.oneid_credentials.keypair,
+            self.project_credentials.keypair,
+        ]
+        jwts.verify_jws(authenticated_data, keypairs).should.be.a(dict)
 
     def test_prepare_message_no_project(self):
         sess = session.ServerSession(identity_credentials=self.server_credentials,
@@ -418,22 +345,15 @@ class TestServerSession(unittest.TestCase):
                 self.resetC_credentials,
             ]
         )
-        msg = json.loads(authenticated_data)
 
-        msg.should.have.key('payload')
-        msg.should.have.key('oneid_signature')
-        msg.should.have.key('reset_signatures').being.a(list)
-
-        msg['reset_signatures'].should.have.length_of(3)
-
-        payload = msg['payload']
-        self.oneid_credentials.keypair.verify(payload, msg['oneid_signature']).should.be.true
-
-        reset_sigs = msg['reset_signatures']
-
-        self.resetA_credentials.keypair.verify(payload, reset_sigs[0]).should.be.true
-        self.resetB_credentials.keypair.verify(payload, reset_sigs[1]).should.be.true
-        self.resetC_credentials.keypair.verify(payload, reset_sigs[2]).should.be.true
+        keypairs = [
+            self.oneid_credentials.keypair,
+            self.project_credentials.keypair,
+            self.resetA_credentials.keypair,
+            self.resetB_credentials.keypair,
+            self.resetC_credentials.keypair,
+        ]
+        jwts.verify_jws(authenticated_data, keypairs).should.be.a(dict)
 
 
 class TestAdminSession(unittest.TestCase):

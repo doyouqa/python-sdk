@@ -150,15 +150,15 @@ def run_jwt_tasks(data_size, count):
 
     keypair = oneid.service.create_secret_key()
     data = {'d': base64.b64encode(os.urandom(data_size)).decode('utf-8')[:data_size]}
-    jwt = oneid.service.make_jwt(data, keypair)
+    jwt = oneid.jwts.make_jwt(data, keypair)
 
     with operations_timer(count, 'creates'):
         for _ in range(count):
-            oneid.service.make_jwt(data, keypair)
+            oneid.jwts.make_jwt(data, keypair)
 
     with operations_timer(count, 'verifies'):
         for _ in range(count):
-            if not oneid.service.verify_jwt(jwt, keypair):
+            if not oneid.jwts.verify_jwt(jwt, keypair):
                 raise RuntimeError('error verifying jwt')
 
 

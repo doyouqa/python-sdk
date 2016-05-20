@@ -2,18 +2,14 @@ from __future__ import unicode_literals
 
 import os
 import yaml
-import json
+import logging
+
 from requests import request
 from codecs import open
 
-from cryptography.exceptions import InvalidSignature
+from . import service, jwts, exceptions
 
-from . import service, utils, exceptions
-
-REQUIRED_JWT_HEADER_ELEMENTS = {
-    'typ': 'JWT',
-    'alg': 'ES256',
-}
+logger = logging.getLogger(__name__)
 
 
 class SessionBase(object):
@@ -21,23 +17,20 @@ class SessionBase(object):
     Abstract Session Class
 
     :ivar identity_credentials: oneID identity :class:`~oneid.keychain.Credentials`
-    :ivar application_credentials: unique app credentials :class:`~oneid.keychain.Credentials`
     :ivar project_credentials: unique project credentials :class:`~oneid.keychain.Credentials`
     :ivar oneid_credentials: oneID project credentials :class:`~oneid.keychain.Credentials`
     """
-    def __init__(self, identity_credentials=None, application_credentials=None,
-                 project_credentials=None, oneid_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, project_credentials=None,
+                 oneid_credentials=None, config=None):
         """
 
         :param identity_credentials: :py:class:`~oneid.keychain.Credentials`
-        :param application_credentials: :py:class:`~oneid.keychain.Credentials`
         :param project_credentials: :py:class:`~oneid.keychain.ProjectCredentials`
         :param oneid_credentials: :py:class:`~oneid.keychain.Credentials`
         :param config: Dictionary or configuration keyword arguments
         :return:
         """
         self.identity_credentials = identity_credentials
-        self.app_credentials = application_credentials
         self.project_credentials = project_credentials
         self.oneid_credentials = oneid_credentials
 
@@ -68,29 +61,6 @@ class SessionBase(object):
                                                              **kwargs)
                         )
 
-    def create_jwt_payload(self, **kwargs):
-        """
-        Create a generic JWT Payload
-
-        :param claims: JWT Claims Dict()
-        :return: JWT payload (*no signature)
-        """
-        alg = json.dumps(REQUIRED_JWT_HEADER_ELEMENTS)
-        alg_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(alg)))
-
-        # Required claims
-        jti = utils.make_nonce()
-
-        claims = {'jti': jti}
-        claims.update(kwargs)
-
-        claims_b64 = utils.to_string(utils.base64url_encode(utils.to_bytes(json.dumps(claims))))
-
-        payload = '{alg_b64}.{claims_b64}'.format(alg_b64=alg_b64,
-                                                  claims_b64=claims_b64)
-
-        return payload
-
     def make_http_request(self, http_method, url, headers=None, body=None):
         """
         Generic HTTP request
@@ -106,11 +76,33 @@ class SessionBase(object):
 
         req = request(http_method, url, headers=headers, data=body)
 
+        logger.debug(
+            'making http %s request to %s, headers=%s, data=%s, req=%s',
+            http_method, url, headers, body, req,
+        )
+
         # 403 is Forbidden, raise an error if this occurs
         if req.status_code == 403:
             raise exceptions.InvalidAuthentication()
 
         return req.content
+
+    def service_request(self, http_method, endpoint, body=None):
+        """
+        Make an API Request
+
+        :param method:
+        :param endpoint:
+        :param body:
+        :return:
+        """
+        auth_jwt_header = jwts.make_jwt({}, self.identity_credentials.keypair)
+
+        headers = {
+            'Content-Type': 'application/jwt',
+            'Authorization': 'Bearer %s' % auth_jwt_header
+        }
+        return self.make_http_request(http_method, endpoint, headers=headers, body=body)
 
     def prepare_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -123,10 +115,9 @@ class SessionBase(object):
 
 
 class DeviceSession(SessionBase):
-    def __init__(self, identity_credentials=None, application_credentials=None,
-                 project_credentials=None, oneid_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, project_credentials=None,
+                 oneid_credentials=None, config=None):
         super(DeviceSession, self).__init__(identity_credentials,
-                                            application_credentials,
                                             project_credentials,
                                             oneid_credentials, config)
 
@@ -134,66 +125,34 @@ class DeviceSession(SessionBase):
         """
         Verify a message received from the server
 
-        :param message: JSON formatted message with two signatures
+        :param message: JSON formatted JWS with at least two signatures
         :param rekey_credentials: List of :class:`~oneid.keychain.Credential`
-        :return: verified message
-        :raises: oneid.exceptions.InvalidAuthentication
+        :return: verified message or False if not valid
         """
-        data = json.loads(message)
-        if not data.get('payload'):
-            raise KeyError('missing payload')
-        if not data.get('oneid_signature'):
-            raise KeyError('missing oneID Digital Signature')
-        if not data.get('project_signature') and not data.get('rekey_signatures'):
-            raise KeyError('missing project signature')
+        standard_keypairs = [
+            self.project_credentials.keypair,
+            self.oneid_credentials.keypair,
+        ]
 
-        # Verify the signatures
-        payload = data['payload'].encode('utf-8')
+        if rekey_credentials:
+            keypairs = [credentials.keypair for credentials in rekey_credentials]
 
-        oneid_sig = data['oneid_signature']
-
-        project_sig = data.get('project_signature')
-        rekey_sigs = data.get('rekey_signatures', list())
-
-        if project_sig:
-            self.project_credentials.keypair.verify(payload, project_sig)
-
-        elif len(rekey_sigs) == 3 and len(rekey_credentials) == 3:
-            if self._check_rekey_sigs(rekey_sigs, rekey_credentials, payload) != 3:
-                raise InvalidSignature('One or more signatures were invalid')
+            kids = jwts.get_jws_key_ids(message)
+            keypairs += [keypair for keypair in standard_keypairs if keypair.identity in kids]
         else:
-            raise InvalidSignature('Missing project signature')
+            keypairs = standard_keypairs
 
-        self.oneid_credentials.keypair.verify(payload, oneid_sig)
+        return jwts.verify_jws(message, keypairs)
 
-    def _check_rekey_sigs(self, sigs, credentials, payload):
-        valid_sig_count = 0
-        # Iterate over all the possible signature/credential permutations
-        for sig in sigs:
-            for cred in credentials:
-                try:
-                    cred.keypair.verify(payload, sig)
-                except InvalidSignature:
-                    pass
-                else:
-                    valid_sig_count += 1
-                    break
-        return valid_sig_count
-
-    def prepare_message(self, **kwargs):
+    def prepare_message(self, *args, **kwargs):
         """
         Prepare a message before sending
 
-        :return: JSON with JWT payload and two signatures
+        :return: Signed JWT
         """
         kwargs['iss'] = self.identity_credentials.id
-        payload = self.create_jwt_payload(**kwargs)
-        identity_sig = utils.to_string(self.identity_credentials.keypair.sign(payload))
-        app_sig = utils.to_string(self.app_credentials.keypair.sign(payload))
 
-        return json.dumps({'payload': payload,
-                           'id_signature': identity_sig,
-                           'app_signature': app_sig})
+        return jwts.make_jws(kwargs, self.identity_credentials.keypair)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -203,10 +162,9 @@ class ServerSession(SessionBase):
     """
     Enable Server to request two-factor Authentication from oneID
     """
-    def __init__(self, identity_credentials=None, application_credentials=None,
-                 project_credentials=None, oneid_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, project_credentials=None,
+                 oneid_credentials=None, config=None):
         super(ServerSession, self).__init__(identity_credentials,
-                                            application_credentials,
                                             project_credentials,
                                             oneid_credentials, config)
 
@@ -231,63 +189,27 @@ class ServerSession(SessionBase):
 
         super(ServerSession, self)._create_services(params, **global_kwargs)
 
-    def service_request(self, http_method, endpoint, body=None):
-        """
-        Make an API Request
-
-        :param method:
-        :param endpoint:
-        :param body:
-        :return:
-        """
-        payload = self.create_jwt_payload()
-
-        signature = self.identity_credentials.keypair.sign(payload)
-
-        auth_jwt_header = '{payload}.{signature}'.format(payload=payload,
-                                                         signature=signature)
-
-        headers = {
-            'Content-Type': 'application/jwt',
-            'Authorization': 'Bearer %s' % auth_jwt_header
-        }
-
-        response = self.make_http_request(http_method, endpoint, headers=headers,
-                                          body=body)
-
-        return response
-
-    def prepare_message(self, *args, **kwargs):
+    def prepare_message(self, oneid_response='', rekey_credentials=None):
         """
         Build message that has two-factor signatures
 
-        :param kwargs: oneid_response to parse and optionally rekey_credentials.
+        :param oneid_response: oneID-cosigned JWS to parse
+        :type oneid_response: str
+        :param rekey_credentials: (optional) rekey credentials
+        :type rekey_credentials: list
         :return: Content to be sent to devices
         """
         if self.project_credentials is None:
             raise AttributeError
 
-        oneid_response = kwargs.pop('oneid_response')
-        # split the JWT Token
-        alg, claims, oneid_sig = oneid_response.split('.')
-        payload = '{alg}.{claims}'.format(alg=alg, claims=claims)
+        keypairs = [
+            self.project_credentials.keypair  # just in case. oneID should include it's sig as sent
+        ]
 
-        reset_credentials = kwargs.get('rekey_credentials', list())
-        if len(reset_credentials) == 3:
-            reset_sigs = list()
-            for cred in reset_credentials:
-                sig = utils.to_string(cred.keypair.sign(payload))
-                reset_sigs.append(sig)
+        if rekey_credentials:
+            keypairs += [credentials.keypair for credentials in rekey_credentials]
 
-            return json.dumps({'payload': payload,
-                               'oneid_signature': oneid_sig,
-                               'reset_signatures': reset_sigs})
-
-        project_sig = utils.to_string(self.project_credentials.keypair.sign(payload))
-
-        return json.dumps({'payload': payload,
-                           'project_signature': project_sig,
-                           'oneid_signature': oneid_sig})
+        return jwts.extend_jws_signatures(oneid_response, keypairs)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -302,10 +224,9 @@ class AdminSession(SessionBase):
     They only need an identity_credentials and oneid_credentials
     to verify responses
     """
-    def __init__(self, identity_credentials, application_credentials=None,
-                 project_credentials=None, oneid_credentials=None, config=None):
+    def __init__(self, identity_credentials, project_credentials=None,
+                 oneid_credentials=None, config=None):
         super(AdminSession, self).__init__(identity_credentials,
-                                           application_credentials,
                                            project_credentials,
                                            oneid_credentials, config)
 
@@ -328,32 +249,6 @@ class AdminSession(SessionBase):
             global_kwargs['project_credentials'] = self.project_credentials
 
         super(AdminSession, self)._create_services(params, **global_kwargs)
-
-    def service_request(self, http_method, endpoint, body=None):
-        """
-        Make an API Request
-
-        :param method:
-        :param endpoint:
-        :param body:
-        :return:
-        """
-        payload = self.create_jwt_payload()
-
-        signature = self.identity_credentials.keypair.sign(payload)
-
-        auth_jwt_header = '{payload}.{signature}'.format(payload=payload,
-                                                         signature=signature)
-
-        headers = {
-            'Content-Type': 'application/jwt',
-            'Authorization': 'Bearer %s' % auth_jwt_header
-        }
-
-        response = self.make_http_request(http_method, endpoint, headers=headers,
-                                          body=body)
-
-        return response
 
     def prepare_message(self, *args, **kwargs):
         raise NotImplementedError
