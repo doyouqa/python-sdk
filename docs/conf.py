@@ -53,7 +53,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'oneID-connect'
-copyright = u'2015, oneID Inc'
+copyright = u'2012-2016, oneID Inc'
 author = u'oneID'
 
 # The version info for the project you're documenting, acts as replacement for

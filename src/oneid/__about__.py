@@ -17,4 +17,4 @@ __author__ = "oneID Inc."
 __email__ = "support@oneID.com"
 
 __license__ = "Apache License, Version 2.0"
-__copyright__ = "Copyright 2012-2015 {0}".format(__author__)
+__copyright__ = "Copyright 2012-2016 {0}".format(__author__)
