@@ -199,12 +199,15 @@ def extend_jws_signatures(
     return json_encoder(ret)
 
 
-def get_jws_key_ids(jws, json_decoder=json.loads):
+def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads):
     """
     Extract the IDs of the keys used to sign a given JWS
 
     :param jws: JWS to get key IDs from
     :type jws: str or bytes
+    :param default_kid: Value to use for looking up keypair if no `kid` found
+                    in a given signature header, as may happen when extending a JWT
+    :type default_kid: str
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: key IDs
     :rtype: list
@@ -216,10 +219,13 @@ def get_jws_key_ids(jws, json_decoder=json.loads):
         logger.debug('error parsing JWS', exc_info=True)
         raise exceptions.InvalidFormatError
 
-    return [_get_kid_for_signature(signature, json_decoder) for signature in jws['signatures']]
+    return [
+        _get_kid_for_signature(signature, default_kid, json_decoder)
+        for signature in jws['signatures']
+    ]
 
 
-def verify_jws(jws, keypairs=None, verify_all=True, json_decoder=json.loads):
+def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decoder=json.loads):
     """
     Convert a JWS back to it's claims, if validated by a set of
     required :py:class:`~oneid.keychain.Keypair`\s
@@ -235,6 +241,9 @@ def verify_jws(jws, keypairs=None, verify_all=True, json_decoder=json.loads):
                     This allows the caller to send multiple keys that _might_ have
                     corresponding signatures, without requiring that _all_ do.
     :type verify_all: bool
+    :param default_kid: Value to use for looking up keypair if no `kid` found
+                    in a given signature header, as may happen when extending a JWT
+    :type default_kid: str
     :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :returns: claims
     :rtype: dict
@@ -268,7 +277,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, json_decoder=json.loads):
     claims = _verify_claims(utils.to_string(utils.base64url_decode(jws['payload'])), json_decoder)
 
     if keypairs:
-        _verify_jws_signatures(jws, keypairs, verify_all, json_decoder)
+        _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
 
     return claims
 
@@ -381,7 +390,7 @@ def _verify_claims(payload, json_decoder):
     return claims
 
 
-def _verify_jws_signatures(jws, keypairs, verify_all, json_decoder):
+def _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder):
     if len(jws['signatures']) == 0:
         logger.warning('No signatures found, rejecting')
         raise exceptions.InvalidSignatureError
@@ -395,7 +404,7 @@ def _verify_jws_signatures(jws, keypairs, verify_all, json_decoder):
         raise exceptions.InvalidKeyError('redundant keypairs found, unable to verify')
 
     found_sigs = [
-        _get_kid_for_signature(sig, json_decoder)
+        _get_kid_for_signature(sig, default_kid, json_decoder)
         in keypair_map for sig in jws['signatures']
     ]
 
@@ -410,15 +419,15 @@ def _verify_jws_signatures(jws, keypairs, verify_all, json_decoder):
         raise exceptions.KeySignatureMismatch
 
     for signature in jws['signatures']:
-        kid = _get_kid_for_signature(signature, json_decoder)
+        kid = _get_kid_for_signature(signature, default_kid, json_decoder)
 
         if verify_all or kid in keypair_map:
             _verify_jws_signature(jws['payload'], keypair_map.get(kid), signature)
 
 
-def _get_kid_for_signature(signature, json_decoder):
+def _get_kid_for_signature(signature, default_kid, json_decoder):
     header = _get_signature_header(signature, json_decoder)
-    kid = header.get('kid', signature.get('header', {}).get('kid'))
+    kid = header.get('kid', signature.get('header', {}).get('kid', default_kid))
 
     if not kid:
         logger.warning(
