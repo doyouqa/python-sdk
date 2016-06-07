@@ -38,27 +38,28 @@ TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (3)      # three seconds
 
 
-def make_jwt(raw_claims, keypair):
+def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
     """
     Convert claims into JWT
 
     :param raw_claims: payload data that will be converted to json
     :type raw_claims: dict
     :param keypair: :py:class:`~oneid.keychain.Keypair` to sign the request
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :return: JWT
     """
     if not isinstance(raw_claims, dict):
         raise TypeError('dict required for claims, type=' + str(type(raw_claims)))
 
     claims = _normalize_claims(raw_claims, keypair.identity)
-    claims_serialized = json.dumps(claims)
+    claims_serialized = json_encoder(claims)
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
     header = {}
     header.update(MINIMAL_JWT_HEADER)
     if keypair.identity:
         header['kid'] = keypair.identity
-    header_b64 = utils.to_string(utils.base64url_encode(json.dumps(header)))
+    header_b64 = utils.to_string(utils.base64url_encode(json_encoder(header)))
 
     payload = '{header}.{claims}'.format(header=header_b64, claims=claims_b64)
 
@@ -67,7 +68,7 @@ def make_jwt(raw_claims, keypair):
     return '{payload}.{sig}'.format(payload=payload, sig=signature)
 
 
-def verify_jwt(jwt, keypair=None):
+def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     """
     Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Keypair`
 
@@ -75,6 +76,7 @@ def verify_jwt(jwt, keypair=None):
     :type jwt: str or bytes
     :param keypair: :py:class:`~oneid.keychain.Keypair` to verify the JWT
     :type keypair: :py:class:`~oneid.keychain.Keypair`
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: claims
     :rtype: dict
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError` if not a valid JWT
@@ -94,20 +96,20 @@ def verify_jwt(jwt, keypair=None):
         logger.debug('invalid JWT, error splitting/decoding: %s', jwt, exc_info=True)
         raise exceptions.InvalidFormatError
 
-    header = _verify_jose_header(utils.to_string(header_json))
-    claims = _verify_claims(utils.to_string(claims_json))
+    header = _verify_jose_header(utils.to_string(header_json), True, json_decoder)
+    claims = _verify_claims(utils.to_string(claims_json), json_decoder)
 
     if keypair:
         try:
             keypair.verify(*(jwt.rsplit('.', 1)))
         except:
-            logger.debug('invalid signature, header=%s, claims=%s', header, claims)
+            logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
             raise exceptions.InvalidSignatureError
 
     return claims
 
 
-def make_jws(raw_claims, keypairs):
+def make_jws(raw_claims, keypairs, json_encoder=json.dumps):
     """
     Convert claims into JWS format (compact or JSON)
 
@@ -115,10 +117,11 @@ def make_jws(raw_claims, keypairs):
     :type raw_claims: dict
     :param keypairs: :py:class:`~oneid.keychain.Keypair`\s to sign the request with
     :type keypairs: list
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :return: JWS
     """
     claims = _normalize_claims(raw_claims)
-    claims_serialized = json.dumps(claims)
+    claims_serialized = json_encoder(claims)
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
     ret = {
@@ -138,7 +141,7 @@ def make_jws(raw_claims, keypairs):
             'kid': keypair.identity,
         }
         header.update(MINIMAL_JSON_JWS_HEADER)
-        header_b64 = utils.to_string(utils.base64url_encode(json.dumps(header)))
+        header_b64 = utils.to_string(utils.base64url_encode(json_encoder(header)))
         to_sign = '{header}.{claims}'.format(header=header_b64, claims=claims_b64)
 
         signature = utils.to_string(keypair.sign(to_sign))
@@ -148,10 +151,13 @@ def make_jws(raw_claims, keypairs):
             'signature': signature,
         })
 
-    return json.dumps(ret)
+    return json_encoder(ret)
 
 
-def extend_jws_signatures(jws, keypairs, default_jwt_kid=None):
+def extend_jws_signatures(
+    jws, keypairs, default_jwt_kid=None,
+    json_encoder=json.dumps, json_decoder=json.loads,
+):
     """
     Add signatures to an existing JWS (or JWT)
 
@@ -161,9 +167,11 @@ def extend_jws_signatures(jws, keypairs, default_jwt_kid=None):
     :type keypairs: list
     :param default_jwt_kid: (optional) value for 'kid' header field if passing a JWT without one
     :type default_jwt_kid: str
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :return: JWS
     """
-    ret = _jws_as_dict(jws, default_jwt_kid)
+    ret = _jws_as_dict(jws, default_jwt_kid, json_decoder)
     payload = ret['payload']
 
     if not isinstance(keypairs, collections.Iterable):
@@ -178,7 +186,7 @@ def extend_jws_signatures(jws, keypairs, default_jwt_kid=None):
             'kid': keypair.identity,
         }
         header.update(MINIMAL_JSON_JWS_HEADER)
-        header_b64 = utils.to_string(utils.base64url_encode(json.dumps(header)))
+        header_b64 = utils.to_string(utils.base64url_encode(json_encoder(header)))
         to_sign = '{header}.{claims}'.format(header=header_b64, claims=payload)
 
         signature = utils.to_string(keypair.sign(to_sign))
@@ -188,29 +196,36 @@ def extend_jws_signatures(jws, keypairs, default_jwt_kid=None):
             'signature': signature,
         })
 
-    return json.dumps(ret)
+    return json_encoder(ret)
 
 
-def get_jws_key_ids(jws):
+def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads):
     """
     Extract the IDs of the keys used to sign a given JWS
 
     :param jws: JWS to get key IDs from
     :type jws: str or bytes
+    :param default_kid: Value to use for looking up keypair if no `kid` found
+                    in a given signature header, as may happen when extending a JWT
+    :type default_kid: str
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: key IDs
     :rtype: list
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
     """
     try:
-        jws = json.loads(utils.to_string(jws))
+        jws = json_decoder(utils.to_string(jws))
     except:
         logger.debug('error parsing JWS', exc_info=True)
         raise exceptions.InvalidFormatError
 
-    return [_get_kid_for_signature(signature) for signature in jws['signatures']]
+    return [
+        _get_kid_for_signature(signature, default_kid, json_decoder)
+        for signature in jws['signatures']
+    ]
 
 
-def verify_jws(jws, keypairs=None, verify_all=True):
+def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decoder=json.loads):
     """
     Convert a JWS back to it's claims, if validated by a set of
     required :py:class:`~oneid.keychain.Keypair`\s
@@ -226,6 +241,10 @@ def verify_jws(jws, keypairs=None, verify_all=True):
                     This allows the caller to send multiple keys that _might_ have
                     corresponding signatures, without requiring that _all_ do.
     :type verify_all: bool
+    :param default_kid: Value to use for looking up keypair if no `kid` found
+                    in a given signature header, as may happen when extending a JWT
+    :type default_kid: str
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :returns: claims
     :rtype: dict
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
@@ -250,15 +269,15 @@ def verify_jws(jws, keypairs=None, verify_all=True):
 
         return verify_jwt(jws, keypairs and keypairs[0])
 
-    jws = json.loads(jws)
+    jws = json_decoder(jws)
 
     if 'payload' not in jws or 'signatures' not in jws:
         raise exceptions.InvalidFormatError
 
-    claims = _verify_claims(utils.to_string(utils.base64url_decode(jws['payload'])))
+    claims = _verify_claims(utils.to_string(utils.base64url_decode(jws['payload'])), json_decoder)
 
     if keypairs:
-        _verify_jws_signatures(jws, keypairs, verify_all)
+        _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
 
     return claims
 
@@ -279,18 +298,18 @@ def _normalize_claims(raw_claims, issuer=None):
     return claims
 
 
-def _jws_as_dict(jws, kid=None):
+def _jws_as_dict(jws, kid, json_decoder):
 
     if not re.match(COMPACT_JWS_RE, jws):
-        return json.loads(jws)
+        return json_decoder(jws)
 
     header_b64, payload, signature = utils.to_string(jws).split('.')
 
-    header = json.loads(utils.to_string(utils.base64url_decode(header_b64)))
+    header = json_decoder(utils.to_string(utils.base64url_decode(header_b64)))
     extra_header = None
 
     if 'kid' not in header:
-        claims = json.loads(utils.to_string(utils.base64url_decode(payload)))
+        claims = json_decoder(utils.to_string(utils.base64url_decode(payload)))
         kid = kid or claims.get('iss')
         extra_header = kid and {
             'kid': kid
@@ -310,10 +329,10 @@ def _jws_as_dict(jws, kid=None):
     return ret
 
 
-def _verify_jose_header(header_json, strict_jwt=True):
+def _verify_jose_header(header_json, strict_jwt, json_decoder):
     header = None
     try:
-        header = json.loads(header_json)
+        header = json_decoder(header_json)
         logger.debug('parsed header, header=%s', header)
     except ValueError:
         logger.debug('invalid header, not valid json: %s', header_json)
@@ -347,9 +366,9 @@ def _verify_jose_header(header_json, strict_jwt=True):
     return header
 
 
-def _verify_claims(payload):
+def _verify_claims(payload, json_decoder):
     try:
-        claims = json.loads(payload)
+        claims = json_decoder(payload)
     except:
         logger.debug('unknown error verifying payload: %s', payload, exc_info=True)
         raise exceptions.InvalidFormatError
@@ -371,7 +390,7 @@ def _verify_claims(payload):
     return claims
 
 
-def _verify_jws_signatures(jws, keypairs, verify_all):
+def _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder):
     if len(jws['signatures']) == 0:
         logger.warning('No signatures found, rejecting')
         raise exceptions.InvalidSignatureError
@@ -384,7 +403,10 @@ def _verify_jws_signatures(jws, keypairs, verify_all):
     if len(keypairs) != len(keypair_map):
         raise exceptions.InvalidKeyError('redundant keypairs found, unable to verify')
 
-    found_sigs = [_get_kid_for_signature(sig) in keypair_map for sig in jws['signatures']]
+    found_sigs = [
+        _get_kid_for_signature(sig, default_kid, json_decoder)
+        in keypair_map for sig in jws['signatures']
+    ]
 
     # need at least one signature
     if not any(found_sigs):
@@ -397,15 +419,15 @@ def _verify_jws_signatures(jws, keypairs, verify_all):
         raise exceptions.KeySignatureMismatch
 
     for signature in jws['signatures']:
-        kid = _get_kid_for_signature(signature)
+        kid = _get_kid_for_signature(signature, default_kid, json_decoder)
 
         if verify_all or kid in keypair_map:
             _verify_jws_signature(jws['payload'], keypair_map.get(kid), signature)
 
 
-def _get_kid_for_signature(signature):
-    header = _get_signature_header(signature)
-    kid = header.get('kid', signature.get('header', {}).get('kid'))
+def _get_kid_for_signature(signature, default_kid, json_decoder):
+    header = _get_signature_header(signature, json_decoder)
+    kid = header.get('kid', signature.get('header', {}).get('kid', default_kid))
 
     if not kid:
         logger.warning(
@@ -416,13 +438,13 @@ def _get_kid_for_signature(signature):
     return kid
 
 
-def _get_signature_header(signature):
+def _get_signature_header(signature, json_decoder):
     # TODO: check for overlapping keys in `protected` and `header`, merge together
     #       for now, we only look for `kid` in `header`, and only if it isn't in `protected`
 
     return _verify_jose_header(
         utils.to_string(utils.base64url_decode(signature['protected'])),
-        strict_jwt=False,
+        False, json_decoder,
     )
 
 

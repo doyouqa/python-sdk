@@ -46,7 +46,7 @@ class ServiceCreator(object):
         :param service_model:
         :return: Dictionary of class attributes
         """
-        base_url = kwargs.get('base_url', '')
+        base_url = os.environ.get('ONEID_API_SERVER_BASE_URL', kwargs.get('base_url', ''))
 
         methods = dict()
         for method_name, method_values in service_model.items():
