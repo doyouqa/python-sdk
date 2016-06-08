@@ -1,9 +1,7 @@
-
 import logging
 
 import unittest
 import mock
-import sure  # noqa
 
 from cryptography.exceptions import InvalidSignature
 
@@ -12,7 +10,6 @@ from oneid import session, service, keychain, jwts, exceptions
 logger = logging.getLogger(__name__)
 
 
-# Patch Requests
 def mock_request(http_method, url, headers=None, data=None):
     """
     Mock an HTTP GET Request
@@ -35,7 +32,9 @@ def mock_request(http_method, url, headers=None, data=None):
                 return MockResponse('Bad Request', 400)
 
             try:
-                key = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+                key = keychain.Keypair.from_secret_pem(
+                    key_bytes=TestSession.id_key_bytes
+                )
                 payload = '{}.{}'.format(jwt_header, jwt_claims)
                 key.verify(payload, jwt_sig)
             except InvalidSignature:
@@ -56,60 +55,62 @@ def mock_request(http_method, url, headers=None, data=None):
 
 
 class TestSession(object):
-    id_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGS'\
-                   'M49AwEHBG0wawIBAQQgbKk/yDq5mmGkhs7b\nLNiCMv25GvwYZNtS5JYUh' \
-                   '4OLafKhRANCAAQ0B+TfNujp2TNlw+zufTwzZSv3yU9U\ncbl+Ip5kv8Snp' \
-                   'p8ksaAGI+DSL7KCih3DXWr9b3Mwjcx0Uxzyrh0Y40z4\n' \
-                   '-----END PRIVATE KEY-----'
+    id_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCC' \
+                   'qGSM49AwEHBG0wawIBAQQgbKk/yDq5mmGkhs7b\nLNiCMv25GvwYZNt' \
+                   'S5JYUh4OLafKhRANCAAQ0B+TfNujp2TNlw+zufTwzZSv3yU9U\ncbl+' \
+                   'Ip5kv8Snpp8ksaAGI+DSL7KCih3DXWr9b3Mwjcx0Uxzyrh0Y40z4\n-' \
+                   '----END PRIVATE KEY-----'
 
-    proj_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCq' \
-                     'GSM49AwEHBG0wawIBAQQgfI4sVem1tP+C8vmR\nZjgvAi2JTPKmDq6xa' \
-                     'sysp92WJEyhRANCAAQGFnKI49VPfm09stPFcREzzh0NE8OY\n1s6Sabu' \
-                     'TGcRKLevloCXsTD0+RhzqorXdZ63pk3B5ac9Ddd+8PWHpzUoz\n' \
-                     '-----END PRIVATE KEY-----\n'
+    proj_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEG' \
+                     'CCqGSM49AwEHBG0wawIBAQQgfI4sVem1tP+C8vmR\nZjgvAi2JTPK' \
+                     'mDq6xasysp92WJEyhRANCAAQGFnKI49VPfm09stPFcREzzh0NE8OY' \
+                     '\n1s6SabuTGcRKLevloCXsTD0+RhzqorXdZ63pk3B5ac9Ddd+8PWH' \
+                     'pzUoz\n-----END PRIVATE KEY-----\n'
 
-    app_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqG' \
-                    'SM49AwEHBG0wawIBAQQgLIGoI9j4s6ogppvx\nqf1j8ShoiiDFo2Dndqh' \
-                    'aAONXhkqhRANCAAQz7gH1LfLxD+8GmHAVFw1LWI6LK1GL\n2wNYb5NxR4' \
-                    'ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6mP\n' \
-                    '-----END PRIVATE KEY-----\n'
+    app_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
+                    'CqGSM49AwEHBG0wawIBAQQgLIGoI9j4s6ogppvx\nqf1j8ShoiiDFo' \
+                    '2DndqhaAONXhkqhRANCAAQz7gH1LfLxD+8GmHAVFw1LWI6LK1GL\n2' \
+                    'wNYb5NxR4ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6m' \
+                    'P\n-----END PRIVATE KEY-----\n'
 
-    oneid_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCq' \
-                      'GSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliywt1eAOoW' \
-                      '6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov/il\nI9HAi/w' \
-                      'HxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC9xXCLRCpH\n' \
-                      '-----END PRIVATE KEY-----\n'
+    oneid_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgE' \
+                      'GCCqGSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliy' \
+                      'wt1eAOoW6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov' \
+                      '/il\nI9HAi/wHxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC' \
+                      '9xXCLRCpH\n-----END PRIVATE KEY-----\n'
 
-    reset_key_A_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
-                        'CqGSM49AwEHBG0wawIBAQQgoipfyjtZXMp5pV/V\naTMQQXg3BX78u' \
-                        'MgM7ePLw7y740ShRANCAATcaPOHf92vDJqOxvny/4BqQhuThy3o\nb' \
-                        'zqDKss/lRiEd3hRpEcnFkA1/5J7YD27d+Rwce8c3Mv5Fw+0EvTEfxv' \
-                        'j\n-----END PRIVATE KEY-----\n'
+    reset_key_A_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49A' \
+                        'gEGCCqGSM49AwEHBG0wawIBAQQgoipfyjtZXMp5pV/V\naTMQQ' \
+                        'Xg3BX78uMgM7ePLw7y740ShRANCAATcaPOHf92vDJqOxvny/4B' \
+                        'qQhuThy3o\nbzqDKss/lRiEd3hRpEcnFkA1/5J7YD27d+Rwce8' \
+                        'c3Mv5Fw+0EvTEfxvj\n-----END PRIVATE KEY-----\n'
 
-    reset_key_B_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
-                        'CqGSM49AwEHBG0wawIBAQQgGnaOW5frHzPyaxsq\noL5AylzMQR3n+' \
-                        'noiYg6CuUUaNlWhRANCAATk2/T8BgFV9DkdvRZvquFzXII+zuKG\nQ' \
-                        '9asmASeRMfM3/HNmMGil82P7PTCGsuumbWhX+Ty0G3eZNE0FbLAK3o' \
-                        '+\n-----END PRIVATE KEY-----\n'
+    reset_key_B_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49A' \
+                        'gEGCCqGSM49AwEHBG0wawIBAQQgGnaOW5frHzPyaxsq\noL5Ay' \
+                        'lzMQR3n+noiYg6CuUUaNlWhRANCAATk2/T8BgFV9DkdvRZvquF' \
+                        'zXII+zuKG\nQ9asmASeRMfM3/HNmMGil82P7PTCGsuumbWhX+T' \
+                        'y0G3eZNE0FbLAK3o+\n-----END PRIVATE KEY-----\n'
 
-    reset_key_C_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
-                        'CqGSM49AwEHBG0wawIBAQQgySmjxLPOGxKxSqaT\nGGcjTJqbYGgFs' \
-                        'njBTsZ+p4GJ9bqhRANCAASk4ktRaOwSpyB6yQ4kCbhsV0KH9eZs\n+' \
-                        's7j/IlzbF0J0uwWeVYZifZxMS4dde/mWBvapkTa+oTiSEQoAwuVe4t' \
-                        '3\n-----END PRIVATE KEY-----\n'
+    reset_key_C_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49A' \
+                        'gEGCCqGSM49AwEHBG0wawIBAQQgySmjxLPOGxKxSqaT\nGGcjT' \
+                        'JqbYGgFsnjBTsZ+p4GJ9bqhRANCAASk4ktRaOwSpyB6yQ4kCbh' \
+                        'sV0KH9eZs\n+s7j/IlzbF0J0uwWeVYZifZxMS4dde/mWBvapkT' \
+                        'a+oTiSEQoAwuVe4t3\n-----END PRIVATE KEY-----\n'
 
 
 class TestBaseSession(unittest.TestCase):
     def test_invalid_method(self):
         base = session.SessionBase()
-        base.make_http_request.when.called_with('BOGUS', None).should.throw(TypeError)
+        self.assertRaises(TypeError, base.make_http_request,
+                          "UNKOWN", "http://localhost:8080")
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_authentication_error(self, mock_request):
         base = session.SessionBase()
-        base.make_http_request.when.called_with(
-            'GET', 'https://myservice/unauthorized'
-        ).should.throw(exceptions.InvalidAuthentication)
+        self.assertRaises(exceptions.InvalidAuthentication,
+                          base.make_http_request,
+                          "GET",
+                          "https://myservice/unauthorized")
 
 
 class TestDeviceSession(unittest.TestCase):
@@ -180,20 +181,24 @@ class TestDeviceSession(unittest.TestCase):
 
         claims = jwts.verify_jws(jws, self.id_credentials.keypair)
 
-        claims.should.be.a(dict)
-        claims.should.have.key('a').equal_to(1)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("a", claims)
+        self.assertEqual(claims.get("a"), 1)
 
     def test_verify_message(self):
-        message = jwts.make_jws({'b': 2}, [self.mock_proj_keypair, self.mock_oneid_keypair])
+        message = jwts.make_jws(
+            {'b': 2},
+            [self.mock_proj_keypair, self.mock_oneid_keypair]
+        )
 
         sess = session.DeviceSession(
             self.id_credentials, self.proj_credentials, self.oneid_credentials
         )
 
         claims = sess.verify_message(message)
-
-        claims.should.be.a(dict)
-        claims.should.have.key('b').equal_to(2)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("b", claims)
+        self.assertEqual(claims.get("b"), 2)
 
     def test_verify_message_with_rekey(self):
         message = jwts.make_jws({'c': 3}, [
@@ -213,11 +218,12 @@ class TestDeviceSession(unittest.TestCase):
             self.resetC_credentials,
         ])
 
-        claims.should.be.a(dict)
-        claims.should.have.key('c').equal_to(3)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
 
     def test_verify_message_with_rekey_keys_only(self):
-        message = jwts.make_jws({'c': 4}, [
+        message = jwts.make_jws({'d': 4}, [
             self.mock_resetA_keypair,
             self.mock_resetB_keypair,
             self.mock_resetC_keypair,
@@ -233,17 +239,23 @@ class TestDeviceSession(unittest.TestCase):
             self.resetC_credentials,
         ])
 
-        claims.should.be.a(dict)
-        claims.should.have.key('c').equal_to(4)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("d", claims)
+        self.assertEqual(claims.get("d"), 4)
 
 
 class TestServerSession(unittest.TestCase):
     def setUp(self):
-        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+        mock_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.id_key_bytes
+        )
         mock_keypair.identity = 'server'
-        self.server_credentials = keychain.Credentials(mock_keypair.identity, mock_keypair)
+        self.server_credentials = keychain.Credentials(mock_keypair.identity,
+                                                       mock_keypair)
 
-        mock_oneid_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.oneid_key_bytes)
+        mock_oneid_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.oneid_key_bytes
+        )
         mock_oneid_keypair.identity = 'oneID'
         self.oneid_credentials = keychain.Credentials(
             mock_oneid_keypair.identity, mock_oneid_keypair
@@ -280,7 +292,8 @@ class TestServerSession(unittest.TestCase):
             mock_resetC_keypair.identity, mock_resetC_keypair
         )
 
-        self.oneid_response = jwts.make_jwt({'a': 1}, mock_oneid_keypair)  # TODO: JWS with both
+        self.oneid_response = jwts.make_jwt({'a': 1}, mock_oneid_keypair)
+        # TODO: JWS with both
 
         self.fake_config = {
             'GLOBAL': {
@@ -297,13 +310,15 @@ class TestServerSession(unittest.TestCase):
 
     def test_init_from_config(self):
         sess = session.ServerSession(config={})
-        sess.should_not.have.property('test_service')
+        with self.assertRaises(AttributeError):
+            getattr(sess, "test_service")
 
         sess = session.ServerSession(
             identity_credentials=self.server_credentials,
             config=self.fake_config,
         )
-        sess.should.have.property('test_service')
+
+        self.assertTrue(hasattr(sess, "test_service"))
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_service_request(self, mock_request):
@@ -311,31 +326,43 @@ class TestServerSession(unittest.TestCase):
             identity_credentials=self.server_credentials,
             config=self.fake_config,
         )
-        sess.test_service.test_method().should.equal('tested')
+
+        test_method = sess.test_service.test_method()
+        self.assertEqual(test_method, "tested")
 
     def test_prepare_message(self):
-        sess = session.ServerSession(identity_credentials=self.server_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.project_credentials)
+        sess = session.ServerSession(
+            identity_credentials=self.server_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials)
 
-        authenticated_data = sess.prepare_message(oneid_response=self.oneid_response)
+        authenticated_data = sess.prepare_message(
+            oneid_response=self.oneid_response
+        )
 
         keypairs = [
             self.oneid_credentials.keypair,
             self.project_credentials.keypair,
         ]
-        jwts.verify_jws(authenticated_data, keypairs).should.be.a(dict)
+
+        verified = jwts.verify_jws(authenticated_data, keypairs)
+        self.assertIsInstance(verified, dict)
 
     def test_prepare_message_no_project(self):
-        sess = session.ServerSession(identity_credentials=self.server_credentials,
-                                     oneid_credentials=self.oneid_credentials)
+        sess = session.ServerSession(
+            identity_credentials=self.server_credentials,
+            oneid_credentials=self.oneid_credentials
+        )
 
-        sess.prepare_message.when.called_with().should.throw(AttributeError)
+        with self.assertRaises(AttributeError):
+            sess.prepare_message()
 
     def test_reset_keys(self):
-        sess = session.ServerSession(identity_credentials=self.server_credentials,
-                                     oneid_credentials=self.oneid_credentials,
-                                     project_credentials=self.project_credentials)
+        sess = session.ServerSession(
+            identity_credentials=self.server_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials
+        )
 
         authenticated_data = sess.prepare_message(
             oneid_response=self.oneid_response,
@@ -353,17 +380,24 @@ class TestServerSession(unittest.TestCase):
             self.resetB_credentials.keypair,
             self.resetC_credentials.keypair,
         ]
-        jwts.verify_jws(authenticated_data, keypairs).should.be.a(dict)
+
+        verified = jwts.verify_jws(authenticated_data, keypairs)
+        self.assertIsInstance(verified, dict)
 
 
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
-        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+        mock_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.id_key_bytes
+        )
         self.credentials = keychain.Credentials('me', mock_keypair)
         mock_project_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.proj_key_bytes
         )
-        self.project_credentials = keychain.Credentials('proj', mock_project_keypair)
+
+        self.project_credentials = keychain.Credentials(
+            'proj', mock_project_keypair
+        )
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
         global_config['base_url'] = 'https://myservice'
@@ -378,8 +412,9 @@ class TestAdminSession(unittest.TestCase):
 
     def test_admin_session_defaults(self):
         sess = session.AdminSession(self.credentials)
-        sess.should.have.property('revoke').being.a(service.BaseService)
-        sess.revoke.__class__.__name__.should.equal('revoke')
+        self.assertTrue(hasattr(sess, "revoke"))
+        self.assertIsInstance(sess.revoke, service.BaseService)
+        self.assertEqual(sess.revoke.__class__.__name__, "revoke")
 
     def test_admin_session_config(self):
         sess = session.AdminSession(self.credentials,
@@ -389,10 +424,13 @@ class TestAdminSession(unittest.TestCase):
 
     def test_project_credentials(self):
         sess = session.AdminSession(self.credentials)
-        sess.project_credentials.should.be.none
+        self.assertIsNone(sess.project_credentials)
 
-        sess = session.AdminSession(self.credentials, project_credentials=self.project_credentials)
-        sess.project_credentials.should.be(self.project_credentials)
+        sess = session.AdminSession(
+            self.credentials,
+            project_credentials=self.project_credentials
+        )
+        self.assertEqual(sess.project_credentials, self.project_credentials)
 
     def test_admin_session_missing_arg(self):
         sess = session.AdminSession(self.credentials,
