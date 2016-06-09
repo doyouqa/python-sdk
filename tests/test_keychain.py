@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
 import os
@@ -33,7 +34,7 @@ class TestProjectCredentials(TestCredentials):
     def setUp(self):
         super(TestProjectCredentials, self).setUp()
         self.encryption_key = os.urandom(32)
-        self.data = 'super 🔥 data'
+        self.data = 'super 🔥data'
         self.project_credentials = keychain.ProjectCredentials(
             self.uuid,
             self.keypair,

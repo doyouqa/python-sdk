@@ -143,7 +143,7 @@ class TestCreateSecretKey(unittest.TestCase):
 class TestEncryptDecryptAttributes(unittest.TestCase):
     def setUp(self):
         self.key = service.create_aes_key()
-        self.data = 'hoôray!🎉'
+        self.data = u'ho\u00F4ray!\u2370'
 
     def test_encrypt(self):
         enc = service.encrypt_attr_value(self.data, self.key)
