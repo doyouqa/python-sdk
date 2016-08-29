@@ -8,7 +8,7 @@ oneID's two-factor authentication service enables you to manage all your servers
 and IoT devices. If a server or IoT device has been compromised or taken out of
 commission, you can easily revoke it's signing permissions.
 
-Before we begin, you will need to ``oneID-cli`` and a `oneID developer account`_.
+Before we begin, you will need ``oneID-cli`` and a `oneID developer account`_.
 
 .. code-block:: console
 
@@ -21,15 +21,15 @@ Intro to oneID's Two-Factor Authentication
 Two-factor means that there will be two signatures for each message.
 **BOTH** signatures must be verified before reading the message.
 Since there are two signatures that need to be verified on the IoT device,
-the IoT device will need to store two tokens that will be used for message verification.
-oneID will provide you with both of these tokens for the IoT device.
+the IoT device will need to store two public keys that will be used for message verification.
+oneID will provide you with both of these public keys for the IoT device.
 
 Steps:
 ~~~~~~
 #. Server prepares a message for the IoT device and signs it.
 #. Server makes a two-factor authentication request to oneID with the prepared message.
-#. oneID verifies the server's identity and responds with oneID's signature of the message
-#. Server then re-signs the message with the shared project key.
+#. oneID verifies the server's identity and responds with oneID's signature for the message.
+#. Server then re-signs the message with the shared Project key.
 #. Server sends the message with the two signatures to the IoT device.
 #. IoT device verifies **BOTH** signatures.
 
@@ -49,23 +49,30 @@ You can find all these in your `oneID developer console`_
 
 Creating a Project
 ~~~~~~~~~~~~~~~~~~
-All users, servers and edge devices need to be associated with a project.
-Let's create a new project.
+All users, servers and edge devices need to be associated with a Project.
+Let's create a new Project.
 
 .. code-block:: console
 
    $ oneid-cli create-project --name "my epic project"
 
-You will be given two keys. The first is your project **SECRET** key.
-The second is a oneID verification public key.
+This will prompt you to generate the public/private key pair for the Project.
+Answer 'Y' at this step.
+You will be given the Project ID and three keys.
+The first key is a oneID verification public key.
+The second is the Project verification public key.
+The third is your Project **SECRET** key.
 
 .. danger::
   SAVE THE PROJECT SECRET KEY IN A SAFE PLACE.
-  If you lose this key, you will lose your ability to send authenticated messages
+  If you lose this key, you will lose your ability to send authenticated messages`
   to your devices.
 
 The oneID verification public key will be given to all your edge devices and used
 to verify messages sent from a server.
+
+In the following steps, we will assume a Project ID of "d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9".
+You should substitute the one you get back from `oneid-cli create-project`.
 
 
 Server
@@ -79,7 +86,7 @@ oneID can verify.
 
 .. code-block:: console
 
-   $ oneid-cli provision --name "IoT server" --type server
+   $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
 
 This will generate a new **SECRET** ``.pem`` file.
 
@@ -89,7 +96,7 @@ This will generate a new **SECRET** ``.pem`` file.
    or give them to anyone.
 
 If you created the server secret key on your personal computer, we need to copy it over to the
-server along with the project key that was generated when you first created the project.
+server along with the Project key that was generated when you first created the Project.
 
 .. code-block:: console
 
@@ -97,7 +104,7 @@ server along with the project key that was generated when you first created the 
     $ scp /Users/me/secret/project_secret.pem ubuntu@10.1.2.3:/home/www/project_secret.pem
     $ scp /Users/me/secret/oneid_public.pem ubuntu@10.1.2.3:/home/www/oneid_public.pem
 
-In python, we're just going to hardcode the path to these keys for quick access.
+In Python, we're just going to hardcode the path to these keys for quick access.
 
 .. code-block:: python
 
@@ -137,18 +144,18 @@ or a messaging protocol such as MQTT, RabbitMQ, Redis etc.
 
 IoT Device
 ~~~~~~~~~~
-Just like we did with the server we need to start with provisioning our IoT device.
+Just like we did with the server, we need to provision our IoT device.
 
 .. code-block:: console
 
-    $ oneid-cli provision --name "my edge device" --type device
+    $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type device
 
 
-Now we need to copy over the oneID verifier key, project verifier key and the
+Now we need to copy over the oneID verifier key, Project verifier key and the
 new device secret key. The oneID verifier key can be downloaded
 from the `oneID developer console`_.
 
-You can print out your project verifier key by adding a snippet to the previous code
+You can print out your Project verifier key by adding a snippet to the previous code
 example.
 
 .. code-block:: python
@@ -158,8 +165,8 @@ example.
    print(project_verifier)
 
 If you can SSH into your IoT device, you can do the same thing that we did with the server
-and copy over the device identity secret key. Since the oneID and project verifier keys
-are static for all devices in a project, we can hard them in code.
+and copy over the device identity secret key. Since the oneID and Project verifier keys
+are static for all devices in a Project, we can hard code them in.
 
 .. code-block:: console
 
