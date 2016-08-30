@@ -148,7 +148,7 @@ Just like we did with the server, we need to provision our IoT device.
 
 .. code-block:: console
 
-    $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type device
+    $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
 
 
 Now we need to copy over the oneID verifier key, Project verifier key and the
