@@ -125,12 +125,56 @@ class ProjectCredentials(Credentials):
         return decryptor.update(ct) + decryptor.finalize()
 
 
-class Keypair(object):
+class BaseKeypair(object):
+    """
+    Generic :py:class:`~oneid.keychain.Keypair` functionality.
+
+    Callers can subclass this to mimic or proxy
+    :py:class:`~oneid.keychain.Keypair`\s
+    """
+    def __init__(self, *args, **kwargs):
+        self.identity = kwargs.get('identity')
+
+    @property
+    def public_key_der(self):
+        raise NotImplementedError
+
+    @property
+    def public_key_pem(self):
+        raise NotImplementedError
+
+    @property
+    def secret_as_der(self):
+        raise NotImplementedError
+
+    @property
+    def secret_as_pem(self):
+        raise NotImplementedError
+
+    def verify(self, payload, signature):
+        raise NotImplementedError
+
+    def sign(self, payload):
+        raise NotImplementedError
+
+    def save(self, *args, **kwargs):
+        """
+        Save a key.
+        Should be overridden and saved to secure storage
+
+        :param args:
+        :param kwargs:
+        :return: Bool Success
+        """
+        raise NotImplementedError
+
+
+class Keypair(BaseKeypair):
     def __init__(self, *args, **kwargs):
         """
         :param kwargs: Pass secret key bytes
         """
-        self.identity = kwargs.get('identity')
+        super(Keypair, self).__init__(*args, **kwargs)
 
         self._private_key = None
         self._public_key = None
@@ -298,17 +342,6 @@ class Keypair(object):
         :return: Public Key in PEM format
         """
         return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
-
-    def save(self, *args, **kwargs):
-        """
-        Save a key.
-        Should be overridden and saved to secure storage
-
-        :param args:
-        :param kwargs:
-        :return: Bool Success
-        """
-        raise NotImplementedError
 
 
 def int2bytes(i, numbytes=None):

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 from __future__ import unicode_literals
 
 import tempfile
@@ -7,18 +6,20 @@ import logging
 
 import unittest
 import mock
-import sure  # noqa
 
 from oneid import service, session, keychain, utils
 
-from .test_session import TestSession, mock_request  # TODO: this is starting to look like a fixture
+# TODO: this is starting to look like a fixture
+from .test_session import TestSession, mock_request
 
 logger = logging.getLogger(__name__)
 
 
 class TestServiceCreator(unittest.TestCase):
     def setUp(self):
-        mock_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.id_key_bytes)
+        mock_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.id_key_bytes
+        )
         self.credentials = keychain.Credentials('me', mock_keypair)
         self.model = {
             'test_method': {
@@ -42,31 +43,44 @@ class TestServiceCreator(unittest.TestCase):
         }
         self.session = session.ServerSession(self.credentials)
         self.service_creator = service.ServiceCreator()
-        self.service = self.service_creator.create_service_class('svc', self.model, self.session)
+        self.service = self.service_creator.create_service_class('svc',
+                                                                 self.model,
+                                                                 self.session)
 
     def test_created_service_class(self):
-        self.service.__class__.__name__.should.equal('svc')
-        self.service.should.have.property('test_method')
+        self.assertEqual(self.service.__class__.__name__, "svc")
+        self.assertTrue(hasattr(self.service, "test_method"))
 
     def test_service_class_with_project_creds(self):
-        mock_proj_keypair = keychain.Keypair.from_secret_pem(key_bytes=TestSession.proj_key_bytes)
+        mock_proj_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.proj_key_bytes
+        )
         proj_credentials = keychain.Credentials('proj-id', mock_proj_keypair)
-        sess = session.ServerSession(self.credentials, project_credentials=proj_credentials)
-        svc = self.service_creator.create_service_class('svc', self.model, sess)
-        svc.__class__.__name__.should.equal('svc')
-        svc.should.have.property('test_method')
+        sess = session.ServerSession(self.credentials,
+                                     project_credentials=proj_credentials)
+        svc = self.service_creator.create_service_class('svc',
+                                                        self.model,
+                                                        sess)
+
+        self.assertEqual(svc.__class__.__name__, "svc")
+        self.assertTrue(hasattr(svc, "test_method"))
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_call_created_method(self, mock_request):
-        self.service.test_method(in_jwt='a', in_url='b', optional=None).should.equal('tested')
+        test_method = self.service.test_method(in_jwt="a",
+                                               in_url="b",
+                                               optional=None)
+        self.assertEqual(test_method, "tested")
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_call_created_method_missing_args(self, mock_request):
-        self.service.test_method.when.called_with().should.throw(TypeError)
+        with self.assertRaises(TypeError):
+            self.service.test_method()
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_call_created_method_with_body(self, mock_request):
-        self.service.test_method(body='hello').should.equal('tested')
+        test_method = self.service.test_method(body="hello")
+        self.assertEqual(test_method, "tested")
 
 
 class TestBaseService(unittest.TestCase):
@@ -98,7 +112,10 @@ class TestBaseService(unittest.TestCase):
         key = service.create_aes_key()
         data = 'Hello, Im Data'
         edata = service.encrypt_attr_value(data, key)
-        self.assertEqual(utils.to_string(service.decrypt_attr_value(edata, key)), data)
+        self.assertEqual(
+            utils.to_string(service.decrypt_attr_value(edata, key)),
+            data
+        )
 
     def test_bytes_encryption(self):
         key = service.create_aes_key()
@@ -121,7 +138,7 @@ class TestCreateSecretKey(unittest.TestCase):
 
         with open(filename, 'rb') as f:
             key_data = f.read()
-            key_data.should.equal(kp.secret_as_pem)
+            self.assertEqual(key_data, kp.secret_as_pem)
 
 
 class TestEncryptDecryptAttributes(unittest.TestCase):
@@ -131,28 +148,42 @@ class TestEncryptDecryptAttributes(unittest.TestCase):
 
     def test_encrypt(self):
         enc = service.encrypt_attr_value(self.data, self.key)
-        enc.should.have.key('cipher').with_value.equal('aes')
-        enc.should.have.key('mode').with_value.equal('gcm')
-        enc.should.have.key('ts').with_value.equal(128)
+        self.assertIn("cipher", enc)
+        self.assertIn("mode", enc)
+        self.assertIn("ts", enc)
+        self.assertEqual(enc.get("cipher"), "aes")
+        self.assertEqual(enc.get("mode"), "gcm")
+        self.assertEqual(enc.get("ts"), 128)
 
     def test_decrypt(self):
         enc = service.encrypt_attr_value(self.data, self.key)
-        utils.to_string(service.decrypt_attr_value(enc, self.key)).should.equal(self.data)
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
 
     def test_decrypt_bytes(self):
         data = utils.to_bytes(self.data)
         enc = service.encrypt_attr_value(data, self.key)
-        service.decrypt_attr_value(enc, self.key).should.equal(data)
+        decrypted = service.decrypt_attr_value(enc, self.key)
+        self.assertEqual(decrypted, data)
 
     def test_decrypt_wrong_type(self):
-        service.decrypt_attr_value.when.called_with(None, self.key).should.throw(ValueError)
-        service.decrypt_attr_value.when.called_with('foo', self.key).should.throw(ValueError)
-        service.decrypt_attr_value.when.called_with(b'foo', self.key).should.throw(ValueError)
-        service.decrypt_attr_value.when.called_with(['foo'], self.key).should.throw(ValueError)
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value(None, self.key)
+
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value("foo", self.key)
+
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value(b"foo", self.key)
+
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value(["foo"], self.key)
 
     def test_decrypt_incorrect_params(self):
         enc = {
             'cipher': 'hope',
             'mode': 'niave',
         }
-        service.decrypt_attr_value.when.called_with(enc, self.key).should.throw(ValueError)
+
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value(enc, self.key)
