@@ -106,36 +106,110 @@ server along with the Project key that was generated when you first created the 
 
 In Python, we're just going to hardcode the path to these keys for quick access.
 
+
 .. code-block:: python
+
+    import json
+    import logging
 
     from oneid.keychain import Keypair, Credentials
     from oneid.session import ServerSession
+    from oneid import utils, exceptions
 
-    # Secret keys we downloaded from oneID Developer Portal
-    server_secret_key_path = '/home/www/server_key.pem'
-    project_secret_key_path = '/home/www/project_key.pem'
+    logging.basicConfig(level=logging.WARNING)
 
-    # Unique Server ID,
-    # we generated ours from uuid.uuid4()
-    SERVER_ID = 'c75a1dfe-b468-4820-9114-2c94c7e092dc'
+    logger = logging.getLogger('fw_update.pw')
 
     # Unique Project ID provided by oneID
-    PROJECT_ID = 'd47fedd0-729f-4941-b4bd-2ec4fe0f9ca9'
+    PROJECT_ID = 'b7f276d1-6c86-4f57-85e8-70105316225b'
+    PROJECT_PROJECT_ID = 'project/' + PROJECT_ID
+
+    # Unique Server ID,
+    SERVER_ID = '709ec376-7e8c-40fc-94ee-14887023c885'
+
+
+    def _get_kid_for_signature(signature):
+        header = _get_signature_header(signature)
+        kid = header.get(
+            'kid', signature.get('header', {}).get('kid')
+        )
+
+        if not kid:
+            logger.warning(
+                'invalid header in signature, missing "kid": %s', signature
+            )
+            raise exceptions.InvalidFormatError
+
+        return kid
+
+
+    def _get_signature_header(signature):
+        json_hdr = utils.to_string(utils.base64url_decode(signature['protected']))
+        header = None
+
+        try:
+            header = json.loads(json_hdr)
+            logger.debug('parsed header, header=%s', header)
+        except ValueError:
+            logger.debug('invalid header, not valid json: %s', json_hdr)
+            raise exceptions.InvalidFormatError
+        except Exception:  # pragma: no cover
+            logger.debug(
+                'unknown error verifying header: %s', json_hdr, exc_info=True
+            )
+            raise
+
+        return header
+
+
+    # Secret keys we downloaded from oneID Developer Portal
+    server_secret_key_path = (
+        './project-{pid}/server-{sid}/server-{sid}-priv.pem'.format(
+            pid=PROJECT_ID, sid=SERVER_ID
+        )
+    )
+    project_secret_key_path = (
+        './project-{pid}/project-{pid}-priv.pem'.format(
+            pid=PROJECT_ID, sid=SERVER_ID
+        )
+    )
 
     server_key = Keypair.from_secret_pem(path=server_secret_key_path)
+    server_key.identity = SERVER_ID
     server_credentials = Credentials(SERVER_ID, server_key)
 
     project_key = Keypair.from_secret_pem(path=project_secret_key_path)
+    project_key.identity = PROJECT_PROJECT_ID
     project_credentials = Credentials(PROJECT_ID, project_key)
 
-    session = ServerSession(identity_credentials=server_credentials,
-                            project_credentials=project_credentials)
+    server_session = ServerSession(
+        identity_credentials=server_credentials,
+        project_credentials=project_credentials
+    )
 
     # Request authentication from oneID
-    auth_response = session.authenticate.server(message='http://mycompany.com/firmwareupdate')
+    auth_response = server_session.authenticate.server(
+        message='http://mycompany.com/firmwareupdate'
+    )
 
-    # Use oneID's authentication response to make the authenticated message
-    authenticated_msg = session.prepare_message(oneid_response=auth_response)
+    logger.debug('auth_response=%s', auth_response)
+
+    resp_json = json.loads(auth_response)
+
+    device_msg = json.dumps({
+        'payload': resp_json['payload'],
+        'signatures': [
+            sig for sig in resp_json['signatures']
+            if _get_kid_for_signature(sig) != SERVER_ID
+        ]
+    })
+
+    # Send to oneID for co-signing
+    device_msg = server_session.prepare_message(
+        oneid_response=device_msg
+    )
+
+    logger.debug('device_msg=%s', device_msg)
 
 The final step is to send the two-factor ``authenticated_msg``
 to the IoT device. You can use any network protocol you want,
@@ -177,40 +251,33 @@ by verifying the digital signatures.
 
 .. code-block:: python
 
-   import base64
-   import json
-   from oneid import keychain
+    from oneid.keychain import Keypair, Credentials
+    from oneid.session import DeviceSession
 
-   # Verifier provided by oneID
-   oneid_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE21O6XdFYPzGLhjlvBPpK' \
-                    'X7qOKL/4pSPRwIv8B8R6pUsW82oHMwFKPZDa+K9sN3k7b3+BLl2gvWRA' \
-                    'vcVwi0QqRw=='
+    oneid_public_key_path = './oneid-pub.pem'
+    oneid_keypair = Keypair.from_public_pem(path=oneid_public_key_path)
+    oneid_keypair.identity = PROJECT_ID
 
-   project_verifier = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBhZyiOPVT35tPbLTxX' \
-                      'ERM84dDRPDmNbOkmm7kxnESi3r5aAl7Ew9PkYc6qK13Wet6ZNweWnP' \
-                      'Q3XfvD1h6c1KMw=='
+    project_public_key_path = './project-pub.pem'
+    project_keypair = Keypair.from_public_pem(path=project_public_key_path)
+    project_keypair.identity = PROJECT_PROJECT_ID
 
-   oneid_keypair = keychain.Keypair.from_public_der(base64.b64decode(oneid_verifier))
+    device_session = DeviceSession(
+        project_credentials=Credentials(
+            identity=project_keypair.identity,
+            keypair=project_keypair
+        ),
+        oneid_credentials=Credentials(
+            identity=oneid_keypair.identity,
+            keypair=oneid_keypair
+        )
+    )
 
-   project_keypair = keychain.Keypair.from_public_der(base64.b64decode(project_verifier))
-
-   # Deserialize the authenticated message
-   data = json.loads(authenticated_msg)
-
-   # Verify Message
-   oneid_keypair.verify(data.get('payload').encode('utf-8'), data.get('oneid_signature'))
-   project_keypair.verify(data.get('payload').encode('utf-8'), data.get('project_signature'))
-
-   header_b64, claims_b64 = data.get('payload')
-
-   # Deserialize the claims
-   claims_data = base64.b64decode(claims_b64)
-   claims = json.loads(claims_data)
-
-   # Finally print the authenticated message
-   print(claims.get('message'))
-
-If either of the keypairs fail to authenticate the message, an ``InvalidSignature`` exception will be raised.
+    try:
+        device_session.verify_message(device_msg)
+        print('Success!')
+    except:
+        print('Failed.')
 
 
 .. _oneID developer account: https://developer.oneid.com/console
