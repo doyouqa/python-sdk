@@ -1,3 +1,5 @@
+
+import json
 import logging
 
 import unittest
@@ -5,9 +7,53 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, jwts, exceptions
+from oneid import session, service, keychain, jwts, utils, exceptions
 
 logger = logging.getLogger(__name__)
+
+
+class MockResponse:
+    def __init__(self, response, status_code):
+        self.content = response
+        self.status_code = status_code
+
+
+def _handle_auth_endpoint(headers=None, data=None):
+    logger.debug('data=%s', data)
+    try:
+        jwt_header, jwt_claims, jwt_sig = data.split('.')
+    except ValueError:
+        jws = json.loads(data)
+        jwt_claims = jws['payload']
+        sigs = jws['signatures']
+        if len(sigs) != 1:
+            raise AttributeError
+        jwt_header = sigs[0]['protected']
+        jwt_sig = sigs[0]['signature']
+    except:
+        return MockResponse('Bad Request', 400)
+
+    try:
+        key = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.id_key_bytes,
+        )
+        key.identity = 'id'
+        oneid_key = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.oneid_key_bytes,
+        )
+        oneid_key.identity = 'oneID'
+        payload = '{}.{}'.format(jwt_header, jwt_claims)
+        key.verify(payload, jwt_sig)
+        logger.debug('claims=%s', jwt_claims)
+        json_claims = utils.to_string(utils.base64url_decode(jwt_claims))
+        jws = jwts.make_jws(json.loads(json_claims), [key, oneid_key])
+        logger.debug('jws=%s', jws)
+        return MockResponse(jws, 200)
+    except InvalidSignature:
+        logger.debug('invalid signature', exc_info=True)
+        return MockResponse('Forbidden', 403)
+
+    return MockResponse('Internal Server Error', 500)
 
 
 def mock_request(http_method, url, headers=None, data=None):
@@ -19,30 +65,17 @@ def mock_request(http_method, url, headers=None, data=None):
     :param data: Body/payload
     :return: :class:`~oneid.test_session.MockResponse`
     """
-    class MockResponse:
-        def __init__(self, response, status_code):
-            self.content = response
-            self.status_code = status_code
-
     if url == 'https://myservice/my/endpoint':
         if http_method.lower() == 'post':
-            try:
-                jwt_header, jwt_claims, jwt_sig = data.split('.')
-            except IndexError:
-                return MockResponse('Bad Request', 400)
-
-            try:
-                key = keychain.Keypair.from_secret_pem(
-                    key_bytes=TestSession.id_key_bytes
-                )
-                payload = '{}.{}'.format(jwt_header, jwt_claims)
-                key.verify(payload, jwt_sig)
-            except InvalidSignature:
-                return MockResponse('Forbidden', 403)
-
             return MockResponse('hello world', 200)
         elif http_method.lower() == 'get':
             return MockResponse('tested', 200)
+        else:
+            return MockResponse('Method Not Allowed', 405)
+
+    elif url == 'https://myservice/auth/endpoint':
+        if http_method.lower() == 'post':
+            return _handle_auth_endpoint(headers, data)
         else:
             return MockResponse('Method Not Allowed', 405)
 
@@ -52,6 +85,10 @@ def mock_request(http_method, url, headers=None, data=None):
     else:
         logger.debug('url not found: %s', url)
         return MockResponse('Not Found', 404)
+
+
+def mock_failed_cosign_request(http_method, url, headers=None, data=None):
+    return MockResponse('', 204)
 
 
 class TestSession(object):
@@ -67,7 +104,7 @@ class TestSession(object):
                      '\n1s6SabuTGcRKLevloCXsTD0+RhzqorXdZ63pk3B5ac9Ddd+8PWH' \
                      'pzUoz\n-----END PRIVATE KEY-----\n'
 
-    app_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
+    alt_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGC' \
                     'CqGSM49AwEHBG0wawIBAQQgLIGoI9j4s6ogppvx\nqf1j8ShoiiDFo' \
                     '2DndqhaAONXhkqhRANCAAQz7gH1LfLxD+8GmHAVFw1LWI6LK1GL\n2' \
                     'wNYb5NxR4ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6m' \
@@ -249,9 +286,10 @@ class TestServerSession(unittest.TestCase):
         mock_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.id_key_bytes
         )
-        mock_keypair.identity = 'server'
-        self.server_credentials = keychain.Credentials(mock_keypair.identity,
-                                                       mock_keypair)
+        mock_keypair.identity = 'id'
+        self.id_credentials = keychain.Credentials(
+            mock_keypair.identity, mock_keypair
+        )
 
         mock_oneid_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.oneid_key_bytes
@@ -259,6 +297,14 @@ class TestServerSession(unittest.TestCase):
         mock_oneid_keypair.identity = 'oneID'
         self.oneid_credentials = keychain.Credentials(
             mock_oneid_keypair.identity, mock_oneid_keypair
+        )
+
+        mock_alt_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.alt_key_bytes
+        )
+        mock_alt_keypair.identity = 'alt'
+        self.alt_credentials = keychain.Credentials(
+            mock_alt_keypair.identity, mock_alt_keypair
         )
 
         mock_project_keypair = keychain.Keypair.from_secret_pem(
@@ -292,7 +338,6 @@ class TestServerSession(unittest.TestCase):
             mock_resetC_keypair.identity, mock_resetC_keypair
         )
 
-        self.oneid_response = jwts.make_jwt({'a': 1}, mock_oneid_keypair)
         # TODO: JWS with both
 
         self.fake_config = {
@@ -306,7 +351,24 @@ class TestServerSession(unittest.TestCase):
                     'arguments': {},
                 },
             },
+            'authenticate': {
+                'server': {
+                    'endpoint': '/auth/endpoint',
+                    'method': 'POST',
+                    'arguments': {
+                        'identity': {
+                            'location': 'url',
+                            'required': True,
+                        },
+                        'message': {
+                            'location': 'jwt',
+                            'required': True,
+                        },
+                    },
+                },
+            },
         }
+        self.fake_config['authenticate']['edge_device'] = self.fake_config['authenticate']['server']
 
     def test_init_from_config(self):
         sess = session.ServerSession(config={})
@@ -314,7 +376,7 @@ class TestServerSession(unittest.TestCase):
             getattr(sess, "test_service")
 
         sess = session.ServerSession(
-            identity_credentials=self.server_credentials,
+            identity_credentials=self.id_credentials,
             config=self.fake_config,
         )
 
@@ -323,21 +385,24 @@ class TestServerSession(unittest.TestCase):
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_service_request(self, mock_request):
         sess = session.ServerSession(
-            identity_credentials=self.server_credentials,
+            identity_credentials=self.id_credentials,
             config=self.fake_config,
         )
 
         test_method = sess.test_service.test_method()
         self.assertEqual(test_method, "tested")
 
-    def test_prepare_message(self):
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_prepare_message(self, mock_request):
         sess = session.ServerSession(
-            identity_credentials=self.server_credentials,
+            identity_credentials=self.id_credentials,
             oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials)
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
 
         authenticated_data = sess.prepare_message(
-            oneid_response=self.oneid_response
+            a=1, b=2,
         )
 
         keypairs = [
@@ -347,25 +412,62 @@ class TestServerSession(unittest.TestCase):
 
         verified = jwts.verify_jws(authenticated_data, keypairs)
         self.assertIsInstance(verified, dict)
+        self.assertIn('message', verified)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_prepare_message_by_param(self, mock_request):
+        sess = session.ServerSession(
+            identity_credentials=self.id_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+
+        authenticated_data = sess.prepare_message(
+            raw_message='hello',
+        )
+
+        keypairs = [
+            self.oneid_credentials.keypair,
+            self.project_credentials.keypair,
+        ]
+
+        verified = jwts.verify_jws(authenticated_data, keypairs)
+        self.assertIsInstance(verified, dict)
+        self.assertIn('message', verified)
+
+    @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
+    def test_prepare_message_failed_cosign(self, mock_request):
+        sess = session.ServerSession(
+            identity_credentials=self.id_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+
+        with self.assertRaises(exceptions.InvalidAuthentication):
+            sess.prepare_message(a=1, b=2)
 
     def test_prepare_message_no_project(self):
         sess = session.ServerSession(
-            identity_credentials=self.server_credentials,
+            identity_credentials=self.id_credentials,
             oneid_credentials=self.oneid_credentials
         )
 
         with self.assertRaises(AttributeError):
             sess.prepare_message()
 
-    def test_reset_keys(self):
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_reset_keys(self, mock_request):
         sess = session.ServerSession(
-            identity_credentials=self.server_credentials,
+            identity_credentials=self.id_credentials,
             oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
         )
 
         authenticated_data = sess.prepare_message(
-            oneid_response=self.oneid_response,
+            a=1, b=2,
             rekey_credentials=[
                 self.resetA_credentials,
                 self.resetB_credentials,
@@ -383,6 +485,89 @@ class TestServerSession(unittest.TestCase):
 
         verified = jwts.verify_jws(authenticated_data, keypairs)
         self.assertIsInstance(verified, dict)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_jwt(self, mock_request):
+        message = jwts.make_jwt(
+            {'c': 3},
+            self.id_credentials.keypair
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(message, self.id_credentials)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_jws(self, mock_request):
+        message = jwts.make_jws(
+            {'c': 3},
+            [self.id_credentials.keypair]
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(message, self.id_credentials)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_from_device_key_only(self, mock_request):
+        message = jwts.make_jwt(
+            {'c': 3},
+            self.id_credentials.keypair
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,   # id_cred needed for device/oneid
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(
+            message, self.id_credentials, get_oneid_cosignature=False
+        )
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_no_device_creds(self, mock_request):
+        message = jwts.make_jwt(
+            {'c': 3},
+            self.id_credentials.keypair
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        with self.assertRaises(AttributeError):
+            sess.verify_message(message, None)
+
+    @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
+    def test_verify_message_failed_cosign(self, mock_request):
+        message = jwts.make_jwt(
+            {'c': 3},
+            self.id_credentials.keypair
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        with self.assertRaises(exceptions.InvalidAuthentication):
+            sess.verify_message(message, self.id_credentials)
 
 
 class TestAdminSession(unittest.TestCase):
@@ -439,10 +624,6 @@ class TestAdminSession(unittest.TestCase):
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_admin_session_service_request(self, mock_request):
-        """
-        Revoke a device
-        :return:
-        """
         sess = session.AdminSession(self.credentials,
                                     config=self.custom_config)
         response = sess.test_service.test_method(my_argument='Hello World')

@@ -114,11 +114,10 @@ In Python, we're just going to hardcode the path to these keys for quick access.
 
     from oneid.keychain import Keypair, Credentials
     from oneid.session import ServerSession
-    from oneid import utils, exceptions
 
     logging.basicConfig(level=logging.WARNING)
 
-    logger = logging.getLogger('fw_update.pw')
+    logger = logging.getLogger('fw_update.py')
 
     # Unique Project ID provided by oneID
     PROJECT_ID = 'b7f276d1-6c86-4f57-85e8-70105316225b'
@@ -126,41 +125,6 @@ In Python, we're just going to hardcode the path to these keys for quick access.
 
     # Unique Server ID,
     SERVER_ID = '709ec376-7e8c-40fc-94ee-14887023c885'
-
-
-    def _get_kid_for_signature(signature):
-        header = _get_signature_header(signature)
-        kid = header.get(
-            'kid', signature.get('header', {}).get('kid')
-        )
-
-        if not kid:
-            logger.warning(
-                'invalid header in signature, missing "kid": %s', signature
-            )
-            raise exceptions.InvalidFormatError
-
-        return kid
-
-
-    def _get_signature_header(signature):
-        json_hdr = utils.to_string(utils.base64url_decode(signature['protected']))
-        header = None
-
-        try:
-            header = json.loads(json_hdr)
-            logger.debug('parsed header, header=%s', header)
-        except ValueError:
-            logger.debug('invalid header, not valid json: %s', json_hdr)
-            raise exceptions.InvalidFormatError
-        except Exception:  # pragma: no cover
-            logger.debug(
-                'unknown error verifying header: %s', json_hdr, exc_info=True
-            )
-            raise
-
-        return header
-
 
     # Secret keys we downloaded from oneID Developer Portal
     server_secret_key_path = (
@@ -187,28 +151,10 @@ In Python, we're just going to hardcode the path to these keys for quick access.
         project_credentials=project_credentials
     )
 
-    # Request authentication from oneID
-    auth_response = server_session.authenticate.server(
-        message='http://mycompany.com/firmwareupdate'
-    )
-
-    logger.debug('auth_response=%s', auth_response)
-
-    resp_json = json.loads(auth_response)
-
-    device_msg = json.dumps({
-        'payload': resp_json['payload'],
-        'signatures': [
-            sig for sig in resp_json['signatures']
-            if _get_kid_for_signature(sig) != SERVER_ID
-        ]
-    })
-
-    # Send to oneID for co-signing
     device_msg = server_session.prepare_message(
-        oneid_response=device_msg
+        download_url='http://mycompany.com/firmwareupdate',
+        checksum=0xdeadbeef,
     )
-
     logger.debug('device_msg=%s', device_msg)
 
 The final step is to send the two-factor ``authenticated_msg``
@@ -274,10 +220,16 @@ by verifying the digital signatures.
     )
 
     try:
-        device_session.verify_message(device_msg)
+        claims = device_session.verify_message(device_msg)
+        msg = json.loads(claims.get('message', '{}'))
+
+        logger.debug('claims=%s', claims)
         print('Success!')
+        print('  URL={}'.format(msg.get('download_url')))
+        print('  checksum=0x{:08x}'.format(msg.get('checksum')))
     except:
         print('Failed.')
+        logger.warning('error: ', exc_info=True)
 
 
 .. _oneID developer account: https://developer.oneid.com/console
