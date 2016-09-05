@@ -38,6 +38,10 @@ class TestServiceCreator(unittest.TestCase):
                         'location': 'jwt',
                         'required': False,
                     },
+                    'optional_in_url': {
+                        'location': 'url',
+                        'required': False,
+                    },
                 },
             }
         }
@@ -73,14 +77,19 @@ class TestServiceCreator(unittest.TestCase):
         self.assertEqual(test_method, "tested")
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_call_created_method_with_body(self, mock_request):
+        test_method = self.service.test_method(body="hello", in_url='something')
+        self.assertEqual(test_method, "tested")
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
     def test_call_created_method_missing_args(self, mock_request):
         with self.assertRaises(TypeError):
             self.service.test_method()
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
-    def test_call_created_method_with_body(self, mock_request):
-        test_method = self.service.test_method(body="hello")
-        self.assertEqual(test_method, "tested")
+    def test_call_created_method_with_body_missing_url_param(self, mock_request):
+        with self.assertRaises(TypeError):
+            self.service.test_method(body="hello")
 
 
 class TestBaseService(unittest.TestCase):
