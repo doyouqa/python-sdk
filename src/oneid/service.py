@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.serialization \
 from .keychain import Keypair
 from . import jwts
 from . import utils
+from . import file_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -170,9 +171,8 @@ def create_secret_key(output=None):
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     # Save the secret key bytes to a secure file
-    if output and os.path.exists(os.path.dirname(output)):
-        with open(output, 'wb') as f:
-            f.write(secret_key_bytes)
+    if output and file_adapter.file_directory_exists(output):
+        file_adapter.write_file(output, secret_key_bytes)
 
     return Keypair.from_secret_pem(key_bytes=secret_key_bytes)
 
