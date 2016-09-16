@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.serialization \
 from .keychain import Keypair
 from . import jwts
 from . import utils
+from . import file_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +51,20 @@ class ServiceCreator(object):
 
         methods = dict()
         for method_name, method_values in service_model.items():
-            required_jwt = list()
-            all_jwt = list()
+            required_jwt = []
+            all_jwt = []
+            required_url = []
+            all_url = []
+
             for arg_name, arg_properties in method_values['arguments'].items():
                 if arg_properties['location'] == 'jwt':
                     all_jwt.append(arg_name)
                     if arg_properties['required'] is True:
                         required_jwt.append(arg_name)
+                if arg_properties['location'] == 'url':
+                    all_url.append(arg_name)
+                    if arg_properties['required'] is True:
+                        required_url.append(arg_name)
 
             absolute_url = '{base}{endpoint}'.format(base=base_url,
                                                      endpoint=method_values['endpoint'])
@@ -66,12 +74,16 @@ class ServiceCreator(object):
                                                            method_values['method'],
                                                            all_body_args=all_jwt,
                                                            required_body_args=required_jwt,
+                                                           all_url_args=all_url,
+                                                           required_url_args=required_url,
                                                            )
         return methods
 
     def _create_api_method(self, name,
                            endpoint, http_method,
-                           all_body_args, required_body_args):
+                           all_body_args, required_body_args,
+                           all_url_args, required_url_args,
+                           ):
         """
         Add methods to session dynamically from yaml file
 
@@ -86,6 +98,9 @@ class ServiceCreator(object):
                         raise TypeError('Missing Required Keyword Argument:'
                                         ' %s' % required)
                 kwargs.update(body_args=all_body_args)
+            for required in required_url_args:
+                if required not in kwargs:
+                    raise TypeError('Missing Required URL Argument: %s' % required)
             return self._make_api_request(endpoint, http_method, **kwargs)
 
         _api_call.__name__ = str(name)
@@ -170,9 +185,8 @@ def create_secret_key(output=None):
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     # Save the secret key bytes to a secure file
-    if output and os.path.exists(os.path.dirname(output)):
-        with open(output, 'wb') as f:
-            f.write(secret_key_bytes)
+    if output and file_adapter.file_directory_exists(output):
+        file_adapter.write_file(output, secret_key_bytes)
 
     return Keypair.from_secret_pem(key_bytes=secret_key_bytes)
 

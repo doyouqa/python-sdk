@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
 
 from . import utils
+from . import file_adapter
 
 KEYSIZE = 256
 KEYSIZE_BYTES = (KEYSIZE // 8)
@@ -219,9 +220,9 @@ class Keypair(BaseKeypair):
             secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, default_backend())
             return cls(secret_bytes=secret_bytes)
 
-        if os.path.exists(path):
-            with open(path, 'rb') as pem_file:
-                secret_bytes = load_pem_private_key(pem_file.read(), None, default_backend())
+        if file_adapter.file_exists(path):
+            with file_adapter.read_file(path) as pem_data:
+                secret_bytes = load_pem_private_key(pem_data, None, default_backend())
                 return cls(secret_bytes=secret_bytes)
 
     @classmethod
@@ -238,9 +239,9 @@ class Keypair(BaseKeypair):
 
         if key_bytes:
             public_bytes = utils.to_bytes(key_bytes)
-        elif os.path.exists(path):
-            with open(path, 'rb') as pem_file:
-                public_bytes = pem_file.read()
+        elif file_adapter.file_exists(path):
+            with file_adapter.read_file(path) as pem_data:
+                public_bytes = pem_data
 
         if public_bytes:
             ret = cls()

@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import os
+import json
 import yaml
 import logging
 
@@ -152,7 +153,7 @@ class DeviceSession(SessionBase):
         """
         kwargs['iss'] = self.identity_credentials.id
 
-        return jwts.make_jws(kwargs, self.identity_credentials.keypair)
+        return jwts.make_jwt(kwargs, self.identity_credentials.keypair)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -189,12 +190,10 @@ class ServerSession(SessionBase):
 
         super(ServerSession, self)._create_services(params, **global_kwargs)
 
-    def prepare_message(self, oneid_response='', rekey_credentials=None):
+    def prepare_message(self, rekey_credentials=None, **kwargs):
         """
         Build message that has two-factor signatures
 
-        :param oneid_response: oneID-cosigned JWS to parse
-        :type oneid_response: str
         :param rekey_credentials: (optional) rekey credentials
         :type rekey_credentials: list
         :return: Content to be sent to devices
@@ -203,19 +202,61 @@ class ServerSession(SessionBase):
             raise AttributeError
 
         keypairs = [
-            self.project_credentials.keypair  # just in case. oneID should include it's sig as sent
+            self.project_credentials.keypair
         ]
 
         if rekey_credentials:
             keypairs += [credentials.keypair for credentials in rekey_credentials]
 
-        return jwts.extend_jws_signatures(oneid_response, keypairs)
+        message = kwargs.get('raw_message', json.dumps(kwargs))
+
+        oneid_response = self.authenticate.server(
+            project_id=self.oneid_credentials.keypair.identity,
+            identity=self.identity_credentials.keypair.identity,
+            message=message
+        )
+
+        if not oneid_response:
+            logger.debug('oneID refused to co-sign server message')
+            raise exceptions.InvalidAuthentication
+
+        stripped_response = jwts.remove_jws_signatures(
+            oneid_response, self.identity_credentials.id
+        )
+        return jwts.extend_jws_signatures(stripped_response, keypairs)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
 
-    def verify_message(self, *args, **kwargs):
-        raise NotImplementedError
+    def verify_message(self, message, device_credentials, get_oneid_cosignature=True):
+        """
+        Verify a message received from a Device via its public key, oneID or both
+
+        :param message: JSON formatted JWS or JWT signed by the Device
+        :param device_credentials: :class:`~oneid.keychain.Credential`
+        to verify Device signature against
+        :param get_oneid_cosignature: (default: True) verify with oneID first
+        :return: verified message or False if not valid
+        """
+
+        if not device_credentials:
+            raise AttributeError
+
+        keypairs = [device_credentials.keypair]
+
+        if get_oneid_cosignature:
+            keypairs += [self.oneid_credentials.keypair]
+            message = self.authenticate.edge_device(
+                project_id=self.oneid_credentials.keypair.identity,
+                identity=device_credentials.keypair.identity,
+                body=message,
+            )
+
+            if not message:
+                logger.debug('oneID refused to co-sign device message')
+                raise exceptions.InvalidAuthentication
+
+        return jwts.verify_jws(message, keypairs)
 
 
 class AdminSession(SessionBase):

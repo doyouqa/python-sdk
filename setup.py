@@ -48,5 +48,5 @@ setup(
     },
     install_requires=['cryptography>=1.3.0,<1.4', 'PyYAML>=3.11,<4',
                       'requests[security]>=2.9.1,<2.10', 'python-dateutil>=2.4.2,<2.5',
-                      'pytz>=2015.7', 'six>=1.10.0,<1.11'],
+                      'pytz>=2015.7', 'six>=1.10.0,<1.11', 'boto3>=1.3.1,<1.4'],
 )
