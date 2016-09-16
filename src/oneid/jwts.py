@@ -11,6 +11,7 @@ IETF RFCs.
 """
 from __future__ import unicode_literals
 
+import six
 import collections
 import json
 import re
@@ -197,6 +198,32 @@ def extend_jws_signatures(
         })
 
     return json_encoder(ret)
+
+
+def remove_jws_signatures(jws, kids_to_remove, json_encoder=json.dumps, json_decoder=json.loads):
+    """
+    Remove signatures from an existing JWS
+
+    :param jws: existing JWS (JSON format only)
+    :type jws: str
+    :param kids_to_remove: Keypair identities to remove
+    :type kids_to_remove: list
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
+    :return: JWS (may have empty signature list if last one removed)
+    """
+    jws_dict = json_decoder(jws)
+
+    if isinstance(kids_to_remove, six.string_types + (six.binary_type,)):
+        kids_to_remove = [kids_to_remove]
+
+    return json_encoder({
+        'payload': jws_dict['payload'],
+        'signatures': [
+            sig for sig in jws_dict['signatures']
+            if _get_kid_for_signature(sig, None, json_decoder) not in kids_to_remove
+        ]
+    })
 
 
 def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads):
