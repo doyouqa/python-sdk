@@ -78,23 +78,38 @@ def make_nonce():
                                               random_str=random_str)
 
 
-def verify_and_burn_nonce(nonce):
+def verify_and_burn_nonce(nonce, nbf=None):
     """
-    Ensure that the nonce is correct, less than one hour old,
-    and not more than two minutes in the future
+    Ensure that the nonce is correct, and not from the future
 
     Callers should also store used nonces and reject messages
     with previously-used ones.
 
     :param nonce: Nonce as created with :func:`~oneid.utils.make_nonce`
+    :param nbf: If not None, a `datetime` before which the nonce is not valid
     :return: True only if nonce meets validation criteria
     :rtype: bool
     """
-    ret = re.match(r'^001[2-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
-                   r'T([01][0-9]|2[0-3])(:[0-5][0-9]){2}Z[A-Za-z0-9]{6}$', nonce)
-    if ret:
-        date = parser.parse(nonce[3:-6])
-        now = datetime.utcnow().replace(tzinfo=tz.tzutc())
-        ret = date < (now + timedelta(minutes=2)) and date > (now + timedelta(hours=-1))
+    NONCE_REGEX = (
+        r'^001'
+        r'[2-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
+        r'T([01][0-9]|2[0-3])(:[0-5][0-9]){2}Z'
+        r'[A-Za-z0-9]{6}$'
+    )
 
-    return ret  # TODO: keep a record (at least for the last hour) of burned nonces
+    if not re.match(NONCE_REGEX, nonce):
+        logger.debug('incorrectly-formatted nonce: %s', nonce)
+        return False
+
+    date = parser.parse(nonce[3:-6])
+    now = datetime.utcnow().replace(tzinfo=tz.tzutc())
+
+    exp = (now + timedelta(minutes=2))
+
+    if (date > exp) or (nbf and (date < nbf)):
+        logger.debug('out-of-date-range nonce: %s, exp=%s, nbf=%s', nonce, exp, nbf)
+        return False
+
+    # TODO: keep a record (at least for the last hour) of burned nonces
+
+    return True
