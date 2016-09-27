@@ -43,7 +43,7 @@ def read_file(filename, binary):
 def write_file(filename, data, binary):
     obj = _s3().Object(*_parse_path(filename))
     data = data if binary else utils.to_string(data)
-    obj.put(Body=data)  # , **settings.AWS_S3_OBJECT_PARAMS)
+    obj.put(Body=data, ServerSideEncryption='AES256')  # , **settings.AWS_S3_OBJECT_PARAMS)
 
 
 __s3 = None
