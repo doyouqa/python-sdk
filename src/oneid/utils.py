@@ -4,6 +4,7 @@ Helpful utility functions
 from __future__ import unicode_literals
 import six
 
+import os
 import random
 import time
 import base64
@@ -83,6 +84,49 @@ def make_nonce():
                                               random_str=random_str)
 
 
+def _default_nonce_handler(nonce):
+    oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
+    nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
+
+    if not os.path.exists(oneid_directory):
+        os.makedirs(oneid_directory)
+
+    if os.path.exists(nonce_cache_fn):
+        count = 0
+        with open(nonce_cache_fn, 'r') as fd:
+            for saved_nonce in fd:
+                saved_nonce = saved_nonce.rstrip()
+                logger.debug('saved_nonce=%s, nonce=%s', saved_nonce, nonce)
+                if saved_nonce == nonce:
+                    return False
+                count += 1
+        if count > 10000:  # pragma: no cover  TODO: mock or attach handler to logger
+            logger.warning(
+                'nonce cache is getting full (%n entries), consider alternate store',
+                count
+            )
+
+    with open(nonce_cache_fn, 'a+') as fd:
+        fd.write(nonce + '\n')
+
+    return True
+
+_nonce_handler = _default_nonce_handler
+
+
+def set_nonce_handler(nonce_handler):
+    """
+    Sets the function to call to verify nonces and record their use.
+
+    By default, the nonces are saved in a local file
+    named `~/.oneid/used_nonces.txt` (or equivalent)
+
+    :param nonce_handler: function to be called. Passed one argument, the nonce
+    """
+    global _nonce_handler
+    _nonce_handler = nonce_handler
+
+
 def verify_and_burn_nonce(nonce, nbf=None):
     """
     Ensure that the nonce is correct, and not from the future
@@ -115,6 +159,4 @@ def verify_and_burn_nonce(nonce, nbf=None):
         logger.debug('out-of-date-range nonce: %s, exp=%s, nbf=%s', nonce, exp, nbf)
         return False
 
-    # TODO: keep a record (at least for the last hour) of burned nonces
-
-    return True
+    return _nonce_handler(nonce)
