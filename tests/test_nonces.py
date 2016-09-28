@@ -57,14 +57,15 @@ class BaseTestVerifyAndBurnNonce(object):
                                       time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.burn_nonce(nonce))
 
     def test_invalid_nonce(self):
         nonce = '002' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
                                       time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
     def test_expired_nonce(self):
         now = int(time.time())
@@ -73,7 +74,7 @@ class BaseTestVerifyAndBurnNonce(object):
                                       time.gmtime(now)) + '123456'
         logger.debug('nonce=%s, nbf=%s', nonce, nbf)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce, nbf))
+        self.assertFalse(nonces.verify_nonce(nonce, nbf))
 
     def test_almost_expired_nonce(self):
         now = int(time.time())
@@ -82,7 +83,7 @@ class BaseTestVerifyAndBurnNonce(object):
                                       time.gmtime(now)) + '123456'
         logger.debug('nonce=%s, nbf=%s', nonce, nbf)
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce, nbf))
+        self.assertTrue(nonces.verify_nonce(nonce, nbf))
 
     def test_future_nonce(self):
         now = int(time.time())
@@ -91,7 +92,7 @@ class BaseTestVerifyAndBurnNonce(object):
                                       time.gmtime(then)) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
     def test_almost_future_nonce(self):
         now = int(time.time())
@@ -100,7 +101,8 @@ class BaseTestVerifyAndBurnNonce(object):
                                       time.gmtime(then)) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.burn_nonce(nonce))
 
     def test_burned_nonce(self):
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
@@ -109,23 +111,25 @@ class BaseTestVerifyAndBurnNonce(object):
                                        time.gmtime()) + '654321'
         logger.debug('nonce=%s, nonce2=%s', nonce, nonce2)
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce))
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce2))
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce2))
+        self.assertTrue(nonces.verify_nonce(nonce2))
+        self.assertTrue(nonces.burn_nonce(nonce2))
+        self.assertFalse(nonces.verify_nonce(nonce2))
 
 
-class BaseTestVerifyAndBurnNonce(BaseTestVerifyAndBurnNonce, TestCase):
+class TestVerifyAndBurnNonce(BaseTestVerifyAndBurnNonce, TestCase):
     pass
 
 
 class TestPermissiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
     def setUp(self):
-        nonces.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
 
     def tearDown(self):
-        nonces.set_nonce_handler(nonces._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_burned_nonce(self):
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
@@ -134,26 +138,29 @@ class TestPermissiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
                                        time.gmtime()) + '654321'
         logger.debug('nonce=%s, nonce2=%s', nonce, nonce2)
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce))
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.burn_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.burn_nonce(nonce))
 
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce2))
-        self.assertTrue(nonces.verify_and_burn_nonce(nonce2))
+        self.assertTrue(nonces.verify_nonce(nonce2))
+        self.assertTrue(nonces.burn_nonce(nonce2))
+        self.assertTrue(nonces.verify_nonce(nonce2))
 
 
 class TestRestrictiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
     def setUp(self):
-        nonces.set_nonce_handler(lambda _n: False)
+        nonces.set_nonce_handlers(lambda _n: False, lambda _n: False)
 
     def tearDown(self):
-        nonces.set_nonce_handler(nonces._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_valid_nonce(self):
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
                                       time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
     def test_almost_expired_nonce(self):
         now = int(time.time())
@@ -162,7 +169,7 @@ class TestRestrictiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
                                       time.gmtime(now)) + '123456'
         logger.debug('nonce=%s, nbf=%s', nonce, nbf)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce, nbf))
+        self.assertFalse(nonces.verify_nonce(nonce, nbf))
 
     def test_almost_future_nonce(self):
         now = int(time.time())
@@ -171,7 +178,7 @@ class TestRestrictiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
                                       time.gmtime(then)) + '123456'
         logger.debug('nonce=%s', nonce)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
     def test_burned_nonce(self):
         nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
@@ -180,8 +187,19 @@ class TestRestrictiveNonceStore(BaseTestVerifyAndBurnNonce, TestCase):
                                        time.gmtime()) + '654321'
         logger.debug('nonce=%s, nonce2=%s', nonce, nonce2)
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
 
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce2))
-        self.assertFalse(nonces.verify_and_burn_nonce(nonce2))
+        self.assertFalse(nonces.verify_nonce(nonce2))
+        self.assertFalse(nonces.verify_nonce(nonce2))
+
+
+class TestBurnWithoutVerify(TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        logger.debug('writing nonce cache to %s/.oneid/used_nonces.txt', self.tmpdir)
+
+    def test_just_burning(self):
+        nonce = nonces.make_nonce()
+        self.assertTrue(nonces.burn_nonce(nonce))

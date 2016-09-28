@@ -110,6 +110,9 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
             logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
             raise exceptions.InvalidSignatureError
 
+    if 'jti' in claims:
+        nonces.burn_nonce(claims['jti'])
+
     return claims
 
 
@@ -309,6 +312,9 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     if keypairs:
         _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
 
+    if 'jti' in claims:
+        nonces.burn_nonce(claims['jti'])
+
     return claims
 
 
@@ -420,7 +426,7 @@ def _verify_claims(payload, json_decoder):
             raise exceptions.InvalidClaimsError
         nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
 
-    if 'jti' in claims and not nonces.verify_and_burn_nonce(claims['jti'], nbf):
+    if 'jti' in claims and not nonces.verify_nonce(claims['jti'], nbf):
         logger.warning('Invalid nonce: %s', claims['jti'])
         raise exceptions.InvalidClaimsError
 

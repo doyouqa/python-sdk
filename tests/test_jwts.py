@@ -30,11 +30,11 @@ class TestJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        nonces.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.keypair = service.create_secret_key()
 
     def tearDown(self):
-        nonces.set_nonce_handler(nonces._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
@@ -290,7 +290,7 @@ class TestKnownJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        nonces.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
@@ -298,7 +298,7 @@ class TestKnownJWTs(TestCase):
         ))
 
     def tearDown(self):
-        nonces.set_nonce_handler(nonces._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_previously_generated_good_vectors(self):
         # msg = '{"claim": '
@@ -377,7 +377,7 @@ class TestJWSs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        nonces.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
 
         self.keypairs = []
 
@@ -387,7 +387,7 @@ class TestJWSs(TestCase):
             self.keypairs.append(key)
 
     def tearDown(self):
-        nonces.set_nonce_handler(nonces._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jws(self, claims, keypairs=None):
         keypairs = keypairs or self.keypairs
@@ -633,3 +633,37 @@ class TestJWSs(TestCase):
 
         verified_msg = jwts.verify_jws(jws, self.keypairs[:2], verify_all=False)
         self.assertIn("a", verified_msg)
+
+
+class TestKnownJWSs(TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
+        self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
+            'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
+            'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
+            'joBvC7Cf4JR/LP7lECAc0mNfokw84+pLurAkP2rG1Y63n9KPwntflfRD='
+        ))
+        self.keypair.identity = '12345'
+
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
+    def test_missing_nonce(self):
+        jws = json.dumps({
+            "payload": "eyJhIjogMX0",
+            "signatures": [{
+                "protected": (
+                    "eyJ0eXAiOiAiSk9TRStKU09OIiwgImFsZyI6ICJFUzI1"
+                    "NiIsICJraWQiOiAiMTIzNDUifQ"
+                ),
+                "signature": (
+                    "9PXHibGclG2wNT5f6BZhkk6YGFI0kUSITBWlmBQIKipL"
+                    "N-UMPKvKUMvelhZX7EIqNpmZB7b9LvIiiNYZ6NFkJg"
+                )
+            }]
+        })
+        self.assertTrue(jwts.verify_jws(jws, self.keypair))
+
+    # TODO: add more

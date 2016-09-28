@@ -43,7 +43,7 @@ def make_nonce():
                                               random_str=random_str)
 
 
-def _default_nonce_handler(nonce):
+def _default_nonce_verifier(nonce):
     oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
     nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
 
@@ -55,7 +55,6 @@ def _default_nonce_handler(nonce):
         with open(nonce_cache_fn, 'r') as fd:
             for saved_nonce in fd:
                 saved_nonce = saved_nonce.rstrip()
-                logger.debug('saved_nonce=%s, nonce=%s', saved_nonce, nonce)
                 if saved_nonce == nonce:
                     return False
                 count += 1
@@ -64,29 +63,43 @@ def _default_nonce_handler(nonce):
                 'nonce cache is getting full (%n entries), consider alternate store',
                 count
             )
+    return True
+
+_nonce_verifier = _default_nonce_verifier
+
+
+def _default_nonce_burner(nonce):
+    oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
+    nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
+
+    if not os.path.exists(oneid_directory):
+        os.makedirs(oneid_directory)
 
     with open(nonce_cache_fn, 'a+') as fd:
         fd.write(nonce + '\n')
 
     return True
 
-_nonce_handler = _default_nonce_handler
+_nonce_burner = _default_nonce_burner
 
 
-def set_nonce_handler(nonce_handler):
+def set_nonce_handlers(nonce_verifier, nonce_burner):
     """
-    Sets the function to call to verify nonces and record their use.
+    Sets the functions to verify nonces and record their use.
 
     By default, the nonces are saved in a local file
     named `~/.oneid/used_nonces.txt` (or equivalent)
 
-    :param nonce_handler: function to be called. Passed one argument, the nonce
+    :param nonce_burner: function to be called to verify. Passed one argument, the nonce
+    :param nonce_verifier: function to be called to burn. Passed one argument, the nonce
     """
-    global _nonce_handler
-    _nonce_handler = nonce_handler
+    global _nonce_burner, _nonce_verifier
+
+    _nonce_verifier = nonce_verifier
+    _nonce_burner = nonce_burner
 
 
-def verify_and_burn_nonce(nonce, nbf=None):
+def verify_nonce(nonce, expiry=None):
     """
     Ensure that the nonce is correct, and not from the future
 
@@ -94,7 +107,7 @@ def verify_and_burn_nonce(nonce, nbf=None):
     with previously-used ones.
 
     :param nonce: Nonce as created with :func:`~oneid.nonces.make_nonce`
-    :param nbf: If not None, a `datetime` before which the nonce is not valid
+    :param expiry: If not None, a `datetime` before which the nonce is not valid
     :return: True only if nonce meets validation criteria
     :rtype: bool
     """
@@ -118,4 +131,8 @@ def verify_and_burn_nonce(nonce, nbf=None):
         logger.debug('out-of-date-range nonce: %s, exp=%s, nbf=%s', nonce, exp, nbf)
         return False
 
-    return _nonce_handler(nonce)
+    return _nonce_verifier(nonce)
+
+
+def burn_nonce(nonce):
+    return _nonce_burner(nonce)
