@@ -14,7 +14,7 @@ from unittest import TestCase
 
 # from nose.tools import nottest
 
-from oneid import service, keychain, jwts, utils, exceptions
+from oneid import service, keychain, jwts, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,11 @@ class TestJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handler(lambda _n: True)
         self.keypair = service.create_secret_key()
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handler(nonces._default_nonce_handler)
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
@@ -290,7 +290,7 @@ class TestKnownJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handler(lambda _n: True)
         self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
@@ -298,7 +298,7 @@ class TestKnownJWTs(TestCase):
         ))
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handler(nonces._default_nonce_handler)
 
     def test_previously_generated_good_vectors(self):
         # msg = '{"claim": '
@@ -377,7 +377,7 @@ class TestJWSs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handler(lambda _n: True)
 
         self.keypairs = []
 
@@ -387,7 +387,7 @@ class TestJWSs(TestCase):
             self.keypairs.append(key)
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handler(nonces._default_nonce_handler)
 
     def _create_and_verify_good_jws(self, claims, keypairs=None):
         keypairs = keypairs or self.keypairs

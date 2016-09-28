@@ -8,6 +8,7 @@ API
     service
     session
     jwts
+    nonces
     auth
     utils
     exceptions

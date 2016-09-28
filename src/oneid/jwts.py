@@ -21,7 +21,7 @@ import logging
 from datetime import datetime
 from dateutil import tz
 
-from . import utils, exceptions
+from . import nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +316,7 @@ def _normalize_claims(raw_claims, issuer=None):
     now = int(time.time())
     claims = {
         # Required claims, may be over-written by entries in raw_claims
-        'jti': utils.make_nonce(),
+        'jti': nonces.make_nonce(),
         'nbf': now,
         'exp': now + TOKEN_EXPIRATION_TIME_SEC,
     }
@@ -420,7 +420,7 @@ def _verify_claims(payload, json_decoder):
             raise exceptions.InvalidClaimsError
         nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
 
-    if 'jti' in claims and not utils.verify_and_burn_nonce(claims['jti'], nbf):
+    if 'jti' in claims and not nonces.verify_and_burn_nonce(claims['jti'], nbf):
         logger.warning('Invalid nonce: %s', claims['jti'])
         raise exceptions.InvalidClaimsError
 
