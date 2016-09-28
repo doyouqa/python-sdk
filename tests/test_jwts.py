@@ -2,6 +2,8 @@
 
 from __future__ import unicode_literals
 
+import os
+import tempfile
 import time
 import base64
 import uuid
@@ -26,10 +28,13 @@ MSGS = [
 
 class TestJWTs(TestCase):
     def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        utils.set_nonce_handler(lambda _n: True)
         self.keypair = service.create_secret_key()
 
     def tearDown(self):
-        pass
+        utils.set_nonce_handler(utils._default_nonce_handler)
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
@@ -283,6 +288,9 @@ class TestJWTs(TestCase):
 
 class TestKnownJWTs(TestCase):
     def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        utils.set_nonce_handler(lambda _n: True)
         self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
@@ -290,7 +298,7 @@ class TestKnownJWTs(TestCase):
         ))
 
     def tearDown(self):
-        pass
+        utils.set_nonce_handler(utils._default_nonce_handler)
 
     def test_previously_generated_good_vectors(self):
         # msg = '{"claim": '
@@ -367,6 +375,10 @@ class TestKnownJWTs(TestCase):
 
 class TestJWSs(TestCase):
     def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        utils.set_nonce_handler(lambda _n: True)
+
         self.keypairs = []
 
         for _ in range(3):
@@ -375,7 +387,7 @@ class TestJWSs(TestCase):
             self.keypairs.append(key)
 
     def tearDown(self):
-        pass
+        utils.set_nonce_handler(utils._default_nonce_handler)
 
     def _create_and_verify_good_jws(self, claims, keypairs=None):
         keypairs = keypairs or self.keypairs
