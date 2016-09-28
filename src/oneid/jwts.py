@@ -18,6 +18,9 @@ import re
 import time
 import logging
 
+from datetime import datetime
+from dateutil import tz
+
 from . import utils, exceptions
 
 logger = logging.getLogger(__name__)
@@ -400,17 +403,24 @@ def _verify_claims(payload, json_decoder):
         logger.debug('unknown error verifying payload: %s', payload, exc_info=True)
         raise exceptions.InvalidFormatError
 
-    now = int(time.time())
+    now_ts = int(time.time())
 
-    if 'exp' in claims and (int(claims['exp']) + TOKEN_EXPIRATION_LEEWAY_SEC) < now:
-        logger.warning('Expired token, exp=%s, now=%s', claims['exp'], now)
-        raise exceptions.InvalidClaimsError
+    nbf = None
 
-    if 'nbf' in claims and (int(claims['nbf']) - TOKEN_NOT_BEFORE_LEEWAY_SEC) > now:
-        logger.warning('Early token, nbf=%s, now=%s', claims['nbf'], now)
-        raise exceptions.InvalidClaimsError
+    if 'exp' in claims:
+        exp_ts = (int(claims['exp']) + TOKEN_EXPIRATION_LEEWAY_SEC)
+        if now_ts > exp_ts:
+            logger.warning('Expired token, exp=%s, now_ts=%s', claims['exp'], now_ts)
+            raise exceptions.InvalidClaimsError
 
-    if 'jti' in claims and not utils.verify_and_burn_nonce(claims['jti']):
+    if 'nbf' in claims:
+        nbf_ts = (int(claims['nbf']) - TOKEN_NOT_BEFORE_LEEWAY_SEC)
+        if now_ts < nbf_ts:
+            logger.warning('Early token, nbf=%s, now_ts=%s', claims['nbf'], now_ts)
+            raise exceptions.InvalidClaimsError
+        nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
+
+    if 'jti' in claims and not utils.verify_and_burn_nonce(claims['jti'], nbf):
         logger.warning('Invalid nonce: %s', claims['jti'])
         raise exceptions.InvalidClaimsError
 
