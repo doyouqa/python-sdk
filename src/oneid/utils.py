@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def to_bytes(data):
-    return data.encode('utf-8') if isinstance(data, unicode if six.PY2 else str) else data
+    return data.encode('utf-8') if isinstance(data, six.text_type) else data
 
 
 def to_string(data):
-    return data if isinstance(data, unicode if six.PY2 else str) else data.decode('utf-8')
+    return data if isinstance(data, six.text_type) else data.decode('utf-8')
 
 
 def base64url_encode(msg):
