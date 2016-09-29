@@ -52,6 +52,8 @@ class TestJWTs(TestCase):
             self.assertIn(claim, claims1)
             self.assertEqual(claims1.get(claim), claims[claim])
 
+        return claims1
+
     def test_jwt_sunny_day(self):
         for msg in MSGS:
             logger.debug('testing jwt for "%s"', msg[:1000])
@@ -282,6 +284,82 @@ class TestJWTs(TestCase):
 
         with self.assertRaises(exceptions.InvalidClaimsError):
             jwts.verify_jwt(jwt, self.keypair)
+
+    def test_nonce_from_exp(self):
+        exp = int(time.time()) + 2*60
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+
+        claims_in = {'exp': exp}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp_dt, parser.parse(claims_out['jti'][3:-6]))
+
+    def test_exp_from_nonce(self):
+        exp = int(time.time()) + 2*60
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+
+        nonce = nonces.make_nonce(exp_dt)
+
+        claims_in = {'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+
+    def test_exp_not_from_v1_nonce(self):
+        now_ts = int(time.time())
+        now_dt = datetime.fromtimestamp(now_ts, tz.tzutc())
+
+        nonce = '001' + nonces.make_nonce(now_dt)[3:]
+
+        claims_in = {'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertNotEqual(now_ts, claims_out['exp'])
+
+    def test_exp_and_nonce(self):
+        exp = int(time.time()) + 2*60
+        nonce = nonces.make_nonce()
+
+        claims_in = {'exp': exp, 'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+        self.assertEqual(nonce, claims_out['jti'])
+
+    def test_exp_and_v1_nonce(self):
+        now = datetime.utcnow().replace(tzinfo=tz.tzutc())
+        nonce = '001' + nonces.make_nonce(now)[3:]
+
+        exp = int(time.time()) + 2*60*60
+
+        claims_in = {'exp': exp, 'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+        self.assertEqual(nonce, claims_out['jti'])
+
+    def test_neither_exp_nor_nonce(self):
+        claims_in = {}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        exp_dt = datetime.fromtimestamp(claims_out['exp'], tz.tzutc())
+
+        self.assertEqual(exp_dt, parser.parse(claims_out['jti'][3:-6]))
+
+    def test_non_standard_nonce(self):
+        nonce = '0022020-02-31T02:28:42ZCdv3Yv'
+        claims_in = {'jti': nonce}
+
+        jwt = jwts.make_jwt(claims_in, self.keypair)
+
+        self.assertTrue(jwt)
+
+        # TODO: parse JWT (it won't validate using the sdk)
+        #
+        # claims_out = self._create_and_verify_good_jwt(claims_in)
+        #
+        # self.assertEqual(nonce, parser.parse(claims_out['jti']))
+        # self.assertIn('exp', claims_out)
 
 
 class TestKnownJWTs(TestCase):

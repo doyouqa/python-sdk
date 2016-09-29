@@ -19,7 +19,7 @@ import time
 import logging
 
 from datetime import datetime
-from dateutil import tz
+from dateutil import parser, tz
 
 from . import nonces, utils, exceptions
 
@@ -319,12 +319,31 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
 
 
 def _normalize_claims(raw_claims, issuer=None):
+    exp = None
+    nonce = None
+
+    if 'exp' in raw_claims and 'jti' not in raw_claims:
+        # use message expiration for nonce expiration
+        exp = raw_claims.get('exp')
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+        nonce = nonces.make_nonce(exp_dt)
+    elif 'jti' in raw_claims and (raw_claims['jti'][:3] == '002') and 'exp' not in raw_claims:
+        # use >v1 nonce expiration for message expiration
+        try:
+            nonce = raw_claims.get('jti')
+            nonce_dt = parser.parse(nonce[3:-6])
+            exp = (nonce_dt - datetime(1970, 1, 1, tzinfo=tz.tzutc())).total_seconds()
+        except:
+            logger.warning('unable to parse jti for nonce exp, using default, jti=%s', nonce)
+
     now = int(time.time())
+    default_exp_ts = (now + TOKEN_EXPIRATION_TIME_SEC)
+    default_exp_dt = datetime.fromtimestamp(default_exp_ts, tz.tzutc())
+
     claims = {
-        # Required claims, may be over-written by entries in raw_claims
-        'jti': nonces.make_nonce(),
+        'jti': nonce or nonces.make_nonce(default_exp_dt),
         'nbf': now,
-        'exp': now + TOKEN_EXPIRATION_TIME_SEC,
+        'exp': exp or default_exp_ts,
     }
     if issuer:
         claims['iss'] = issuer
