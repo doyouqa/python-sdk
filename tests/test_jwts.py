@@ -8,6 +8,9 @@ import time
 import base64
 import uuid
 import json
+from datetime import datetime, timedelta
+from dateutil import parser, tz
+
 import logging
 
 from unittest import TestCase
@@ -43,13 +46,11 @@ class TestJWTs(TestCase):
         claims2 = jwts.verify_jwt(jwt)
 
         self.assertTrue(claims1)
-        self.assertTrue(claims2)
+        self.assertEqual(claims1, claims2)
 
         for claim in claims:
             self.assertIn(claim, claims1)
-            self.assertIn(claim, claims2)
             self.assertEqual(claims1.get(claim), claims[claim])
-            self.assertEqual(claims2.get(claim), claims[claim])
 
     def test_jwt_sunny_day(self):
         for msg in MSGS:
@@ -228,7 +229,7 @@ class TestJWTs(TestCase):
     def test_not_quite_expired_then_expired(self):
         now = int(time.time())
         logger.debug('pre-sleep now=%s', now)
-        exp = (now - jwts.TOKEN_EXPIRATION_LEEWAY_SEC) + 2
+        exp = now + 2
         jwt = jwts.make_jwt({'message': 'hi', 'exp': exp}, self.keypair)
 
         self.assertTrue(jwts.verify_jwt(jwt, self.keypair))
@@ -258,15 +259,14 @@ class TestJWTs(TestCase):
             jwts.verify_jwt(jwt, self.keypair)
 
     def test_valid_nonce(self):
-        nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
-                                      time.gmtime()) + '123456'
+        nonce = nonces.make_nonce()
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
 
         self.assertTrue(jwts.verify_jwt(jwt, self.keypair))
 
     def test_invalid_nonce(self):
-        nonce = '002' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
+        nonce = '999' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
                                       time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
@@ -275,10 +275,8 @@ class TestJWTs(TestCase):
             jwts.verify_jwt(jwt, self.keypair)
 
     def test_expired_nonce(self):
-        now = int(time.time())
-        then = now-(1*24*60*60)
-        nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
-                                      time.gmtime(then)) + '123456'
+        then = datetime.utcnow().replace(tzinfo=tz.tzutc()) + timedelta(hours=-24)
+        nonce = nonces.make_nonce(then)
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
 

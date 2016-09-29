@@ -5,7 +5,6 @@ from __future__ import unicode_literals
 
 import os
 import random
-import time
 import re
 from datetime import datetime, timedelta
 from dateutil import parser, tz
@@ -13,18 +12,23 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+NONCE_V1_PREFIX = '001'
+NONCE_V2_PREFIX = '002'
+
+DEFAULT_NONCE_EXPIRY_SECONDS = (1 * 60 * 60)  # one hour
 
 _valid_chars = None
 
 
-def make_nonce():
+def make_nonce(expiry=None):
     """
-    Create a nonce with timestamp included
+    Create a nonce with expiration timestamp included
+
+    :param expiry: a `datetime` that indicates when the nonce self-expires,
+        defaults to now + 30 minutes
 
     :return: nonce
     """
-    time_format = '%Y-%m-%dT%H:%M:%SZ'
-    time_component = time.strftime(time_format, time.gmtime())
     global _valid_chars
 
     if not _valid_chars:
@@ -34,13 +38,23 @@ def make_nonce():
             if chr(char_index).isalpha() or chr(char_index).isalnum():
                 _valid_chars += chr(char_index)
 
+    if not expiry:
+        now = datetime.utcnow().replace(tzinfo=tz.tzutc())
+        expiry = (now + timedelta(seconds=DEFAULT_NONCE_EXPIRY_SECONDS))
+
+    time_format = '%Y-%m-%dT%H:%M:%SZ'
+    time_component = expiry.strftime(time_format)
+
     random_str = ''
     random_chr = random.SystemRandom()
     for i in range(0, 6):
         random_str += random_chr.choice(_valid_chars)
 
-    return '001{time_str}{random_str}'.format(time_str=time_component,
-                                              random_str=random_str)
+    return '{prefix}{time_str}{random_str}'.format(
+        prefix=NONCE_V2_PREFIX,
+        time_str=time_component,
+        random_str=random_str,
+    )
 
 
 def _default_nonce_verifier(nonce):
@@ -112,7 +126,7 @@ def verify_nonce(nonce, expiry=None):
     :rtype: bool
     """
     NONCE_REGEX = (
-        r'^001'
+        r'^00[12]'
         r'[2-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])'
         r'T([01][0-9]|2[0-3])(:[0-5][0-9]){2}Z'
         r'[A-Za-z0-9]{6}$'
@@ -122,13 +136,23 @@ def verify_nonce(nonce, expiry=None):
         logger.debug('incorrectly-formatted nonce: %s', nonce)
         return False
 
-    date = parser.parse(nonce[3:-6])
+    nonce_date = parser.parse(nonce[3:-6])
+
+    if expiry and (nonce_date < expiry):
+        logger.debug('out-of-date-range nonce: %s, expiry=%s', nonce, expiry)
+        return False
+
     now = datetime.utcnow().replace(tzinfo=tz.tzutc())
 
-    exp = (now + timedelta(minutes=2))
+    if nonce[:3] == NONCE_V1_PREFIX:
+        now_ish = (now + timedelta(minutes=2))
 
-    if (date > exp) or (nbf and (date < nbf)):
-        logger.debug('out-of-date-range nonce: %s, exp=%s, nbf=%s', nonce, exp, nbf)
+        if nonce_date > now_ish:
+            logger.debug('nonce from the future, invalid: %s', nonce)
+            return False
+
+    elif now > nonce_date:
+        logger.debug('nonce is expired: %s', nonce)
         return False
 
     return _nonce_verifier(nonce)
