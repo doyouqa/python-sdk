@@ -569,6 +569,12 @@ class TestJWSs(TestCase):
         with self.assertRaises(exceptions.InvalidFormatError):
             jwts.get_jws_key_ids("not a jws")
 
+    def test_get_jws_key_ids_from_jwt(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+        kids = [self.keypairs[0].identity]
+        msg_ids = jwts.get_jws_key_ids(jwt)
+        self.assertEqual(msg_ids, kids)
+
     def test_jwt_verify_with_mult_sigs(self):
         jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
 

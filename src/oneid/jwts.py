@@ -42,6 +42,10 @@ TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (3)      # three seconds
 
 
+def is_compact(jws):
+    return bool(re.match(COMPACT_JWS_RE, jws))
+
+
 def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
     """
     Convert claims into JWT
@@ -90,7 +94,8 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     :raises: :py:class:`~oneid.exceptions.InvalidSignatureError` if signature is not valid
     """
     jwt = utils.to_string(jwt)
-    if not re.match(COMPACT_JWS_RE, jwt):
+
+    if not is_compact(jwt):
         logger.debug('Given JWT doesnt match pattern: %s', jwt)
         raise exceptions.InvalidFormatError
 
@@ -246,8 +251,21 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads):
     :rtype: list
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
     """
+
+    jws = utils.to_string(jws)
+
+    if is_compact(jws):
+        header_b64, claims_b64, _ = jws.split('.')
+        header = json_decoder(utils.to_string(utils.base64url_decode(header_b64)))
+        claims = json_decoder(utils.to_string(utils.base64url_decode(claims_b64)))
+        kid = header.get('kid', claims.get('iss', default_kid))
+        return [kid] if kid else []
+
     try:
-        jws = json_decoder(utils.to_string(jws))
+        jws = json_decoder(jws)
+        payload_json = utils.to_string(utils.base64url_decode(jws.get('payload', '')))
+        payload = json_decoder(payload_json)
+        default_kid = payload and payload.get('iss', default_kid) or default_kid
     except:
         logger.debug('error parsing JWS', exc_info=True)
         raise exceptions.InvalidFormatError
@@ -293,7 +311,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
 
     jws = utils.to_string(jws)
 
-    if re.match(COMPACT_JWS_RE, jws):
+    if is_compact(jws):
 
         if verify_all and keypairs and len(keypairs) != 1:
             raise exceptions.InvalidSignatureError(
@@ -316,6 +334,19 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
         nonces.burn_nonce(claims['jti'])
 
     return claims
+
+
+# def _extract_claim(jws, claim):
+#
+#     if is_compact(jws):
+#         claims_b64 = jws.split('.')[1]
+#     else:
+#         jws_dict = json.loads(jws)
+#         claims_b64 = jws_dict.get('payload', '')
+#
+#     claims = utils.base64url_decode(claims_b64) or {}
+#
+#     return claims.get(claim)
 
 
 def _normalize_claims(raw_claims, issuer=None):
@@ -355,10 +386,12 @@ def _normalize_claims(raw_claims, issuer=None):
 
 def _jws_as_dict(jws, kid, json_decoder):
 
-    if not re.match(COMPACT_JWS_RE, jws):
+    jws = utils.to_string(jws)
+
+    if not is_compact(jws):
         return json_decoder(jws)
 
-    header_b64, payload, signature = utils.to_string(jws).split('.')
+    header_b64, payload, signature = jws.split('.')
 
     header = json_decoder(utils.to_string(utils.base64url_decode(header_b64)))
     extra_header = None
@@ -388,7 +421,6 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
     header = None
     try:
         header = json_decoder(header_json)
-        logger.debug('parsed header, header=%s', header)
     except ValueError:
         logger.debug('invalid header, not valid json: %s', header_json)
         raise exceptions.InvalidFormatError
@@ -417,7 +449,6 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
             logger.debug('invalid "alg" in header: %s', header)
             raise exceptions.InvalidAlgorithmError
 
-    logger.debug('returning %s', header)
     return header
 
 
