@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import os
 import json
 import yaml
+import collections
 import logging
 
 from requests import request
@@ -211,7 +212,7 @@ class ServerSession(SessionBase):
         message = kwargs.get('raw_message', json.dumps(kwargs))
 
         oneid_response = self.authenticate.server(
-            project_id=self.oneid_credentials.keypair.identity,
+            project_id=self.project_credentials.keypair.identity,
             identity=self.identity_credentials.keypair.identity,
             message=message
         )
@@ -230,11 +231,11 @@ class ServerSession(SessionBase):
 
     def verify_message(self, message, device_credentials, get_oneid_cosignature=True):
         """
-        Verify a message received from a Device via its public key, oneID or both
+        Verify a message received from/through one or more Devices
 
         :param message: JSON formatted JWS or JWT signed by the Device
-        :param device_credentials: :class:`~oneid.keychain.Credential`
-        to verify Device signature against
+        :param device_credentials: :class:`~oneid.keychain.Credential` (or list of them)
+        to verify Device signature(s) against
         :param get_oneid_cosignature: (default: True) verify with oneID first
         :return: verified message or False if not valid
         """
@@ -242,13 +243,18 @@ class ServerSession(SessionBase):
         if not device_credentials:
             raise AttributeError
 
-        keypairs = [device_credentials.keypair]
+        if not isinstance(device_credentials, collections.Iterable):
+            device_credentials = [device_credentials]
+
+        keypairs = [credential.keypair for credential in device_credentials]
 
         if get_oneid_cosignature:
             keypairs += [self.oneid_credentials.keypair]
+
+            # TODO: if not already signed by oneID: (for now, do as asked, let caller deal with it)
             message = self.authenticate.edge_device(
-                project_id=self.oneid_credentials.keypair.identity,
-                identity=device_credentials.keypair.identity,
+                project_id=self.project_credentials.keypair.identity,
+                identity=keypairs[0].identity,  # arbitrary choice, for endpoint
                 body=message,
             )
 
