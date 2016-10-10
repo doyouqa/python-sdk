@@ -1,5 +1,4 @@
 
-import json
 import logging
 
 import unittest
@@ -7,7 +6,7 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, jwts, utils, exceptions
+from oneid import session, service, keychain, jwts, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -20,33 +19,13 @@ class MockResponse:
 
 def _handle_auth_endpoint(headers=None, data=None):
     logger.debug('data=%s', data)
-    try:
-        jwt_header, jwt_claims, jwt_sig = data.split('.')
-    except ValueError:
-        jws = json.loads(data)
-        jwt_claims = jws['payload']
-        sigs = jws['signatures']
-        if len(sigs) != 1:
-            raise AttributeError
-        jwt_header = sigs[0]['protected']
-        jwt_sig = sigs[0]['signature']
-    except:
-        return MockResponse('Bad Request', 400)
 
     try:
-        key = keychain.Keypair.from_secret_pem(
-            key_bytes=TestSession.id_key_bytes,
-        )
-        key.identity = 'id'
         oneid_key = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.oneid_key_bytes,
         )
         oneid_key.identity = 'oneID'
-        payload = '{}.{}'.format(jwt_header, jwt_claims)
-        key.verify(payload, jwt_sig)
-        logger.debug('claims=%s', jwt_claims)
-        json_claims = utils.to_string(utils.base64url_decode(jwt_claims))
-        jws = jwts.make_jws(json.loads(json_claims), [key, oneid_key])
+        jws = jwts.extend_jws_signatures(data, oneid_key)
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
     except InvalidSignature:
@@ -516,6 +495,23 @@ class TestServerSession(unittest.TestCase):
             config=self.fake_config,
         )
         claims = sess.verify_message(message, self.id_credentials)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_jws_with_routing(self, mock_request):
+        message = jwts.make_jws(
+            {'c': 3},
+            [self.id_credentials.keypair, self.alt_credentials.keypair]
+        )
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(message, [self.id_credentials, self.alt_credentials])
         self.assertIsInstance(claims, dict)
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)

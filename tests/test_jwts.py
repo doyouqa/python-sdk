@@ -8,13 +8,16 @@ import time
 import base64
 import uuid
 import json
+from datetime import datetime, timedelta
+from dateutil import parser, tz
+
 import logging
 
 from unittest import TestCase
 
 # from nose.tools import nottest
 
-from oneid import service, keychain, jwts, utils, exceptions
+from oneid import service, keychain, jwts, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +33,11 @@ class TestJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.keypair = service.create_secret_key()
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
@@ -43,13 +46,13 @@ class TestJWTs(TestCase):
         claims2 = jwts.verify_jwt(jwt)
 
         self.assertTrue(claims1)
-        self.assertTrue(claims2)
+        self.assertEqual(claims1, claims2)
 
         for claim in claims:
             self.assertIn(claim, claims1)
-            self.assertIn(claim, claims2)
             self.assertEqual(claims1.get(claim), claims[claim])
-            self.assertEqual(claims2.get(claim), claims[claim])
+
+        return claims1
 
     def test_jwt_sunny_day(self):
         for msg in MSGS:
@@ -228,7 +231,7 @@ class TestJWTs(TestCase):
     def test_not_quite_expired_then_expired(self):
         now = int(time.time())
         logger.debug('pre-sleep now=%s', now)
-        exp = (now - jwts.TOKEN_EXPIRATION_LEEWAY_SEC) + 2
+        exp = now + 2
         jwt = jwts.make_jwt({'message': 'hi', 'exp': exp}, self.keypair)
 
         self.assertTrue(jwts.verify_jwt(jwt, self.keypair))
@@ -258,15 +261,14 @@ class TestJWTs(TestCase):
             jwts.verify_jwt(jwt, self.keypair)
 
     def test_valid_nonce(self):
-        nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
-                                      time.gmtime()) + '123456'
+        nonce = nonces.make_nonce()
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
 
         self.assertTrue(jwts.verify_jwt(jwt, self.keypair))
 
     def test_invalid_nonce(self):
-        nonce = '002' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
+        nonce = '999' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
                                       time.gmtime()) + '123456'
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
@@ -275,22 +277,96 @@ class TestJWTs(TestCase):
             jwts.verify_jwt(jwt, self.keypair)
 
     def test_expired_nonce(self):
-        now = int(time.time())
-        then = now-(1*24*60*60)
-        nonce = '001' + time.strftime('%Y-%m-%dT%H:%M:%SZ',
-                                      time.gmtime(then)) + '123456'
+        then = datetime.utcnow().replace(tzinfo=tz.tzutc()) + timedelta(hours=-24)
+        nonce = nonces.make_nonce(then)
         logger.debug('nonce=%s', nonce)
         jwt = jwts.make_jwt({'message': 'hi', 'jti': nonce}, self.keypair)
 
         with self.assertRaises(exceptions.InvalidClaimsError):
             jwts.verify_jwt(jwt, self.keypair)
 
+    def test_nonce_from_exp(self):
+        exp = int(time.time()) + 2*60
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+
+        claims_in = {'exp': exp}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp_dt, parser.parse(claims_out['jti'][3:-6]))
+
+    def test_exp_from_nonce(self):
+        exp = int(time.time()) + 2*60
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+
+        nonce = nonces.make_nonce(exp_dt)
+
+        claims_in = {'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+
+    def test_exp_not_from_v1_nonce(self):
+        now_ts = int(time.time())
+        now_dt = datetime.fromtimestamp(now_ts, tz.tzutc())
+
+        nonce = '001' + nonces.make_nonce(now_dt)[3:]
+
+        claims_in = {'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertNotEqual(now_ts, claims_out['exp'])
+
+    def test_exp_and_nonce(self):
+        exp = int(time.time()) + 2*60
+        nonce = nonces.make_nonce()
+
+        claims_in = {'exp': exp, 'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+        self.assertEqual(nonce, claims_out['jti'])
+
+    def test_exp_and_v1_nonce(self):
+        now = datetime.utcnow().replace(tzinfo=tz.tzutc())
+        nonce = '001' + nonces.make_nonce(now)[3:]
+
+        exp = int(time.time()) + 2*60*60
+
+        claims_in = {'exp': exp, 'jti': nonce}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        self.assertEqual(exp, claims_out['exp'])
+        self.assertEqual(nonce, claims_out['jti'])
+
+    def test_neither_exp_nor_nonce(self):
+        claims_in = {}
+        claims_out = self._create_and_verify_good_jwt(claims_in)
+
+        exp_dt = datetime.fromtimestamp(claims_out['exp'], tz.tzutc())
+
+        self.assertEqual(exp_dt, parser.parse(claims_out['jti'][3:-6]))
+
+    def test_non_standard_nonce(self):
+        nonce = '0022020-02-31T02:28:42ZCdv3Yv'
+        claims_in = {'jti': nonce}
+
+        jwt = jwts.make_jwt(claims_in, self.keypair)
+
+        self.assertTrue(jwt)
+
+        # TODO: parse JWT (it won't validate using the sdk)
+        #
+        # claims_out = self._create_and_verify_good_jwt(claims_in)
+        #
+        # self.assertEqual(nonce, parser.parse(claims_out['jti']))
+        # self.assertIn('exp', claims_out)
+
 
 class TestKnownJWTs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
@@ -298,7 +374,7 @@ class TestKnownJWTs(TestCase):
         ))
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_previously_generated_good_vectors(self):
         # msg = '{"claim": '
@@ -377,7 +453,7 @@ class TestJWSs(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        utils.set_nonce_handler(lambda _n: True)
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
 
         self.keypairs = []
 
@@ -387,7 +463,7 @@ class TestJWSs(TestCase):
             self.keypairs.append(key)
 
     def tearDown(self):
-        utils.set_nonce_handler(utils._default_nonce_handler)
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jws(self, claims, keypairs=None):
         keypairs = keypairs or self.keypairs
@@ -492,6 +568,12 @@ class TestJWSs(TestCase):
     def test_get_jws_key_invalid_jws(self):
         with self.assertRaises(exceptions.InvalidFormatError):
             jwts.get_jws_key_ids("not a jws")
+
+    def test_get_jws_key_ids_from_jwt(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+        kids = [self.keypairs[0].identity]
+        msg_ids = jwts.get_jws_key_ids(jwt)
+        self.assertEqual(msg_ids, kids)
 
     def test_jwt_verify_with_mult_sigs(self):
         jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
@@ -633,3 +715,37 @@ class TestJWSs(TestCase):
 
         verified_msg = jwts.verify_jws(jws, self.keypairs[:2], verify_all=False)
         self.assertIn("a", verified_msg)
+
+
+class TestKnownJWSs(TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        os.environ['HOME'] = self.tmpdir
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
+        self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
+            'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
+            'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
+            'joBvC7Cf4JR/LP7lECAc0mNfokw84+pLurAkP2rG1Y63n9KPwntflfRD='
+        ))
+        self.keypair.identity = '12345'
+
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
+    def test_missing_nonce(self):
+        jws = json.dumps({
+            "payload": "eyJhIjogMX0",
+            "signatures": [{
+                "protected": (
+                    "eyJ0eXAiOiAiSk9TRStKU09OIiwgImFsZyI6ICJFUzI1"
+                    "NiIsICJraWQiOiAiMTIzNDUifQ"
+                ),
+                "signature": (
+                    "9PXHibGclG2wNT5f6BZhkk6YGFI0kUSITBWlmBQIKipL"
+                    "N-UMPKvKUMvelhZX7EIqNpmZB7b9LvIiiNYZ6NFkJg"
+                )
+            }]
+        })
+        self.assertTrue(jwts.verify_jws(jws, self.keypair))
+
+    # TODO: add more
