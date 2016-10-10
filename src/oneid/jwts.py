@@ -19,9 +19,9 @@ import time
 import logging
 
 from datetime import datetime
-from dateutil import tz
+from dateutil import parser, tz
 
-from . import utils, exceptions
+from . import nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,13 @@ MINIMAL_JSON_JWS_HEADER = {
     'typ': 'JOSE+JSON',
     'alg': 'ES256',
 }
-TOKEN_EXPIRATION_TIME_SEC = (1*60*60)  # one hour
+TOKEN_EXPIRATION_TIME_SEC = nonces.DEFAULT_NONCE_EXPIRY_SECONDS
 TOKEN_NOT_BEFORE_LEEWAY_SEC = (2*60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (3)      # three seconds
+
+
+def is_compact(jws):
+    return bool(re.match(COMPACT_JWS_RE, jws))
 
 
 def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
@@ -90,7 +94,8 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     :raises: :py:class:`~oneid.exceptions.InvalidSignatureError` if signature is not valid
     """
     jwt = utils.to_string(jwt)
-    if not re.match(COMPACT_JWS_RE, jwt):
+
+    if not is_compact(jwt):
         logger.debug('Given JWT doesnt match pattern: %s', jwt)
         raise exceptions.InvalidFormatError
 
@@ -109,6 +114,9 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
         except:
             logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
             raise exceptions.InvalidSignatureError
+
+    if 'jti' in claims:
+        nonces.burn_nonce(claims['jti'])
 
     return claims
 
@@ -243,8 +251,21 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads):
     :rtype: list
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
     """
+
+    jws = utils.to_string(jws)
+
+    if is_compact(jws):
+        header_b64, claims_b64, _ = jws.split('.')
+        header = json_decoder(utils.to_string(utils.base64url_decode(header_b64)))
+        claims = json_decoder(utils.to_string(utils.base64url_decode(claims_b64)))
+        kid = header.get('kid', claims.get('iss', default_kid))
+        return [kid] if kid else []
+
     try:
-        jws = json_decoder(utils.to_string(jws))
+        jws = json_decoder(jws)
+        payload_json = utils.to_string(utils.base64url_decode(jws.get('payload', '')))
+        payload = json_decoder(payload_json)
+        default_kid = payload and payload.get('iss', default_kid) or default_kid
     except:
         logger.debug('error parsing JWS', exc_info=True)
         raise exceptions.InvalidFormatError
@@ -290,7 +311,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
 
     jws = utils.to_string(jws)
 
-    if re.match(COMPACT_JWS_RE, jws):
+    if is_compact(jws):
 
         if verify_all and keypairs and len(keypairs) != 1:
             raise exceptions.InvalidSignatureError(
@@ -309,16 +330,51 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     if keypairs:
         _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
 
+    if 'jti' in claims:
+        nonces.burn_nonce(claims['jti'])
+
     return claims
 
 
+# def _extract_claim(jws, claim):
+#
+#     if is_compact(jws):
+#         claims_b64 = jws.split('.')[1]
+#     else:
+#         jws_dict = json.loads(jws)
+#         claims_b64 = jws_dict.get('payload', '')
+#
+#     claims = utils.base64url_decode(claims_b64) or {}
+#
+#     return claims.get(claim)
+
+
 def _normalize_claims(raw_claims, issuer=None):
+    exp = None
+    nonce = None
+
+    if 'exp' in raw_claims and 'jti' not in raw_claims:
+        # use message expiration for nonce expiration
+        exp = raw_claims.get('exp')
+        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
+        nonce = nonces.make_nonce(exp_dt)
+    elif 'jti' in raw_claims and (raw_claims['jti'][:3] == '002') and 'exp' not in raw_claims:
+        # use >v1 nonce expiration for message expiration
+        try:
+            nonce = raw_claims.get('jti')
+            nonce_dt = parser.parse(nonce[3:-6])
+            exp = (nonce_dt - datetime(1970, 1, 1, tzinfo=tz.tzutc())).total_seconds()
+        except:
+            logger.warning('unable to parse jti for nonce exp, using default, jti=%s', nonce)
+
     now = int(time.time())
+    default_exp_ts = (now + TOKEN_EXPIRATION_TIME_SEC)
+    default_exp_dt = datetime.fromtimestamp(default_exp_ts, tz.tzutc())
+
     claims = {
-        # Required claims, may be over-written by entries in raw_claims
-        'jti': utils.make_nonce(),
+        'jti': nonce or nonces.make_nonce(default_exp_dt),
         'nbf': now,
-        'exp': now + TOKEN_EXPIRATION_TIME_SEC,
+        'exp': exp or default_exp_ts,
     }
     if issuer:
         claims['iss'] = issuer
@@ -330,10 +386,12 @@ def _normalize_claims(raw_claims, issuer=None):
 
 def _jws_as_dict(jws, kid, json_decoder):
 
-    if not re.match(COMPACT_JWS_RE, jws):
+    jws = utils.to_string(jws)
+
+    if not is_compact(jws):
         return json_decoder(jws)
 
-    header_b64, payload, signature = utils.to_string(jws).split('.')
+    header_b64, payload, signature = jws.split('.')
 
     header = json_decoder(utils.to_string(utils.base64url_decode(header_b64)))
     extra_header = None
@@ -363,7 +421,6 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
     header = None
     try:
         header = json_decoder(header_json)
-        logger.debug('parsed header, header=%s', header)
     except ValueError:
         logger.debug('invalid header, not valid json: %s', header_json)
         raise exceptions.InvalidFormatError
@@ -392,7 +449,6 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
             logger.debug('invalid "alg" in header: %s', header)
             raise exceptions.InvalidAlgorithmError
 
-    logger.debug('returning %s', header)
     return header
 
 
@@ -420,7 +476,7 @@ def _verify_claims(payload, json_decoder):
             raise exceptions.InvalidClaimsError
         nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
 
-    if 'jti' in claims and not utils.verify_and_burn_nonce(claims['jti'], nbf):
+    if 'jti' in claims and not nonces.verify_nonce(claims['jti'], nbf):
         logger.warning('Invalid nonce: %s', claims['jti'])
         raise exceptions.InvalidClaimsError
 

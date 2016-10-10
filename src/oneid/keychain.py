@@ -38,18 +38,18 @@ class Credentials(object):
 
 
     :ivar identity: UUID of the identity.
-    :ivar keypair: :class:`~oneid.keychain.Keypair` instance.
+    :ivar keypair: :class:`~oneid.keychain.BaseKeypair` instance.
     """
     def __init__(self, identity, keypair):
         """
 
         :param identity: uuid of the entity
-        :param keypair: :py:class:`~oneid.keychain.Keypair` instance
+        :param keypair: :py:class:`~oneid.keychain.BaseKeypair` instance
         """
         self.id = identity
 
-        if not isinstance(keypair, Keypair):
-            raise ValueError('keypair must be a oneid.keychain.Keypair instance')
+        if not isinstance(keypair, BaseKeypair):
+            raise ValueError('keypair must be a oneid.keychain.BaseKeypair instance')
 
         self.keypair = keypair
 
@@ -60,7 +60,7 @@ class ProjectCredentials(Credentials):
         Adds an ecryption key
 
         :param project_id: oneID project UUID
-        :param keypair: :py:class:`~oneid.keychain.Keypair`
+        :param keypair: :py:class:`~oneid.keychain.BaseKeypair`
         :param encryption_key: AES key used to encrypt messages
         """
         super(ProjectCredentials, self).__init__(project_id, keypair)
