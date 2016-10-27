@@ -25,7 +25,7 @@ MSGS = [
     'hello there',
     'héllo!',
     '😬',
-    '😬' * 2**20,  # 1M
+    '😬' * 2 ** 20,  # 1M
 ]
 
 
@@ -37,7 +37,8 @@ class TestJWTs(TestCase):
         self.keypair = service.create_secret_key()
 
     def tearDown(self):
-        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+        nonces.set_nonce_handlers(
+            nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jwt(self, claims, keypair=None):
         keypair = keypair or self.keypair
@@ -254,7 +255,7 @@ class TestJWTs(TestCase):
     def test_use_before_in_future(self):
         now = int(time.time())
         logger.debug('now=%s', now)
-        jwt = jwts.make_jwt({'message': 'hi', 'nbf': (now + (3*60))},
+        jwt = jwts.make_jwt({'message': 'hi', 'nbf': (now + (3 * 60))},
                             self.keypair)
 
         with self.assertRaises(exceptions.InvalidClaimsError):
@@ -286,7 +287,7 @@ class TestJWTs(TestCase):
             jwts.verify_jwt(jwt, self.keypair)
 
     def test_nonce_from_exp(self):
-        exp = int(time.time()) + 2*60
+        exp = int(time.time()) + 2 * 60
         exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
 
         claims_in = {'exp': exp}
@@ -295,7 +296,7 @@ class TestJWTs(TestCase):
         self.assertEqual(exp_dt, parser.parse(claims_out['jti'][3:-6]))
 
     def test_exp_from_nonce(self):
-        exp = int(time.time()) + 2*60
+        exp = int(time.time()) + 2 * 60
         exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
 
         nonce = nonces.make_nonce(exp_dt)
@@ -317,7 +318,7 @@ class TestJWTs(TestCase):
         self.assertNotEqual(now_ts, claims_out['exp'])
 
     def test_exp_and_nonce(self):
-        exp = int(time.time()) + 2*60
+        exp = int(time.time()) + 2 * 60
         nonce = nonces.make_nonce()
 
         claims_in = {'exp': exp, 'jti': nonce}
@@ -330,7 +331,7 @@ class TestJWTs(TestCase):
         now = datetime.utcnow().replace(tzinfo=tz.tzutc())
         nonce = '001' + nonces.make_nonce(now)[3:]
 
-        exp = int(time.time()) + 2*60*60
+        exp = int(time.time()) + 2 * 60 * 60
 
         claims_in = {'exp': exp, 'jti': nonce}
         claims_out = self._create_and_verify_good_jwt(claims_in)
@@ -374,7 +375,8 @@ class TestKnownJWTs(TestCase):
         ))
 
     def tearDown(self):
-        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+        nonces.set_nonce_handlers(
+            nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_previously_generated_good_vectors(self):
         # msg = '{"claim": '
@@ -462,8 +464,89 @@ class TestJWSs(TestCase):
             key.identity = str(uuid.uuid4())
             self.keypairs.append(key)
 
+        self.JWS_MISSING_2_SIGNATURE_INDEXES = json.dumps(
+            {
+                "signatures": [
+                    {
+                        "signature": ("qv3yMkk5ASPWYKHduH07JtwziPvZjOVlUpBX4ePd8YYPu4H5poHBn12QgjY9"
+                                      "MF081UH2-BARVRzDaJ7N02nXFA"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpPU0UrSlNPTiIsICJraWQiOiAi"
+                                      "MDAyY2Q5MTAtYzEyMi00ZmY3LWEwMmMtMzQyNjAzOTQ1YzFiIn0")
+                    },
+                    {
+                        "signature": ("rwm1ohxoHPCFWT_rsQKV0CPezUHp-Udgc4JsuqjtWpqMFuQEDYDTMEDlx93B"
+                                      "2RWGvF7WyjNeftCSr-olAcM04A"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpPU0UrSlNPTiIsICJraWQiOiAi"
+                                      "NTU2YTZlOTctNzZlNS00NGRmLTkyMGUtMTE0OTA5MDNiNDZhIn0")
+                    },
+                    {
+                        "signature": ("HUSPH2fP8MTb2F4wT5cClNzzvIWtxn7oTLaFlSMMiAWmTKnUbMpA6GcGhPNg"
+                                      "b3Yu5RPyNQuyx_cwXsV00sDO8Q"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAic2lkIjogMCwgInR5cCI6ICJKT1NFK0pTT04i"
+                                      "LCAia2lkIjogIjA2ZjY2ODdhLWIxYTQtNGMyZC04YmIwLWQ3ZjdhMjU3ODE2"
+                                      "MSJ9")
+                    }
+                ],
+                "payload": ("eyJqdGkiOiAiMDAyMjQ4OS0wMi0yN1QxNjowMDowMFpPbE13WUgiLCAibmJmIjogMTQ3OT"
+                            "QxNTY3OCwgImEiOiAxLCAiZXhwIjogMTYzODMxNjgwMDB9")
+            }
+        )
+
+        self.JWS_MISSING_1_SIGNATURE_INDEXES = json.dumps(
+            {
+                "signatures": [
+                    {
+                        "signature": ("W8HUqYZi3F3xI-Hx2KUwXCeEwhxLDqpSOs4syaAaHJvvwArShgdZibwFLmy9"
+                                      "w4sdR2oFRQU2Uz7-flOuaDukTA"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAia2lkIjogIjg2M2E4MDU1LTU2OGUtNGE3Yy04"
+                                      "YjAwLWQxYTdhMjBkZjc0MSIsICJ0eXAiOiAiSk9TRStKU09OIiwgInNpZHgi"
+                                      "OiAwfQ")
+                    },
+                    {
+                        "signature": ("O5q9H9vXTiGh0Qrv6Rc1r7Tbc_eO-K5CMX_-Z5ir33GPX4c-AuQuKoE4vLvi"
+                                      "n30LfnCOcG5USXVE8G-Q3eD-TQ"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAia2lkIjogImFlOGVhOWI4LWZlMmQtNDI0My05"
+                                      "OGE5LWQ5ZjAyYjBiYWEwYiIsICJ0eXAiOiAiSk9TRStKU09OIiwgInNpZHgi"
+                                      "OiAxfQ")
+                    },
+                    {
+                        "signature": ("kFQeh4tYgsioE71umxNc4_r6diil7vVFC7nYiXQpaAZA9FfWVnM6vSCgS2UX"
+                                      "wKicHrf-S5_1ZjiXPR-uInZKeg"),
+                        "protected": ("eyJraWQiOiAiMzc0MGU1YjUtMDc3MC00YjcwLWIzN2MtOTUyMTA4ZTBhYzE0"
+                                      "IiwgInR5cCI6ICJKT1NFK0pTT04iLCAiYWxnIjogIkVTMjU2In0")
+                    }
+                ],
+                "payload": ("eyJhIjogMSwgIm5iZiI6IDE0Nzk0MTYyMzEsICJqdGkiOiAiMDAyMjQ4OS0wMi0yN1QxNj"
+                            "owMDowMFo3WW1QQ1IiLCAiZXhwIjogMTYzODMxNjgwMDB9")
+            }
+        )
+
+        self.JWS_DUPLICATE_SIGNATURE_INDEXES = json.dumps(
+            {
+                "signatures": [
+                    {
+                        "signature": ("0xmM4kfdd9vXc58nwGrrur_ddzppnB90OeTYLGO6aeNLuCzM7rTcL3edeCyR"
+                                      "nqddn3hyXl4eCQSSOGCjdHwlRQ"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpPU0UrSlNPTiIsICJraWQiOiAi"
+                                      "MTg2NjEzY2UtOWZmNy00ZWNjLTlkZTgtNzY2NjdmOWIwZjQ5IiwgInNpZHgi"
+                                      "OiAxfQ")
+                    },
+                    {
+                        "signature": ("vT6zww3UwMO-ECi1E74qJuV2U2hEJwC_k8ab2fumQZRsqG4vCJob8pQaGa-k"
+                                      "dF88FSXDqj6j_09UXa0Fx_eOHA"),
+                        "protected": ("eyJhbGciOiAiRVMyNTYiLCAidHlwIjogIkpPU0UrSlNPTiIsICJraWQiOiAi"
+                                      "ZjMyYzE1ZGYtZGNmNS00YThiLWJhMzktYjM0Y2QwNGJiMjhjIiwgInNpZHgi"
+                                      "OiAxfQ")
+                    }
+                ],
+                "payload": ("eyJhIjogMSwgImV4cCI6IDE0Nzk0Mjk2NDMsICJqdGkiOiAiMDAyMjAxNi0xMS0xOFQwMD"
+                            "o0MDo0M1pWS09WOTIiLCAibmJmIjogMTQ3OTQyNjA0M30")
+            }
+        )
+
     def tearDown(self):
-        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+        nonces.set_nonce_handlers(
+            nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def _create_and_verify_good_jws(self, claims, keypairs=None):
         keypairs = keypairs or self.keypairs
@@ -497,6 +580,16 @@ class TestJWSs(TestCase):
 
         with self.assertRaises(exceptions.InvalidKeyError):
             jwts.make_jws({"hi": 7}, keypair)
+
+    def test_incorrect_number_of_headers(self):
+        with self.assertRaises(exceptions.KeyHeaderMismatch):
+            jwts.make_jws({'hello': 7}, self.keypairs[
+                0], multiple_sig_headers=[{'z': 0}, {'z': 99}])
+
+    def test_invalid_headers(self):
+        with self.assertRaises(exceptions.ReservedHeader):
+            jwts.make_jws({'hello': 7}, self.keypairs[
+                0], multiple_sig_headers=[{'alg': 99}])
 
     def test_extend_jws_signatures_from_jwt(self):
         jwt = jwts.make_jwt({"a": 1}, self.keypairs[0])
@@ -546,11 +639,34 @@ class TestJWSs(TestCase):
         verified_msg = jwts.verify_jws(jws, self.keypairs)
         self.assertIsInstance(verified_msg, dict)
 
+    def test_extend_jws_signatures_from_jws_multiple_without_sidx(self):
+        jws = self.JWS_MISSING_2_SIGNATURE_INDEXES
+        jws = jwts.extend_jws_signatures(jws, self.keypairs[2:])
+        headers = jwts.get_jws_headers(jws)
+        indexes = list(filter(None, [h.get('sidx', None) for h in headers]))
+        self.assertEqual(len(indexes), 0)
+
+    def test_extend_jws_signatures_from_jws_without_1_sidx(self):
+        jws = self.JWS_MISSING_1_SIGNATURE_INDEXES
+        jws = jwts.extend_jws_signatures(jws, self.keypairs[2:])
+        self.assertIsInstance(jwts.get_jws_key_ids(jws, ordered=True), list)
+
+    def test_extend_incorrect_number_of_headers(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+        with self.assertRaises(exceptions.KeyHeaderMismatch):
+            jwts.extend_jws_signatures(
+                jws, self.keypairs[0], multiple_sig_headers=[{'z': 0}, {'z': 99}])
+
     def test_remove_jws_signature(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
         jws = jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
         verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
         self.assertIsInstance(verified_msg, dict)
+
+    def test_none_headers(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1], multiple_sig_headers=None)
+        jws_headers = jwts.get_jws_headers(jws)
+        self.assertIsInstance(jws_headers[0], dict)
 
     def test_remove_jws_signature_list(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
@@ -564,6 +680,22 @@ class TestJWSs(TestCase):
         kids = [keypair.identity for keypair in self.keypairs]
         msg_ids = jwts.get_jws_key_ids(jws)
         self.assertEqual(msg_ids, kids)
+
+    def test_get_ordered_jws_key_ids(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs)
+        kids = [keypair.identity for keypair in self.keypairs]
+        msg_ids = jwts.get_jws_key_ids(jws, ordered=True)
+        self.assertEqual(msg_ids, kids)
+
+    def test_get_ordered_jws_key_ids_without_sidx(self):
+        jws = self.JWS_MISSING_2_SIGNATURE_INDEXES
+        with self.assertRaises(exceptions.InvalidSignatureIndexes):
+            jwts.get_jws_key_ids(jws, ordered=True)
+
+    def test_get_ordered_jws_key_ids_with_duplicate_sidx(self):
+        jws = self.JWS_DUPLICATE_SIGNATURE_INDEXES
+        with self.assertRaises(exceptions.InvalidSignatureIndexes):
+            jwts.get_jws_key_ids(jws, ordered=True)
 
     def test_get_jws_key_invalid_jws(self):
         with self.assertRaises(exceptions.InvalidFormatError):
@@ -713,8 +845,28 @@ class TestJWSs(TestCase):
     def test_jws_verify_any_signature_is_ok(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
 
-        verified_msg = jwts.verify_jws(jws, self.keypairs[:2], verify_all=False)
+        verified_msg = jwts.verify_jws(
+            jws, self.keypairs[:2], verify_all=False)
         self.assertIn("a", verified_msg)
+
+    def test_get_jws_headers(self):
+        header = {'z': 99}
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1], [header])
+        jws_headers = jwts.get_jws_headers(jws)
+        self.assertTrue(jws_headers[0]['z'] == header['z'])
+
+    def test_get_jws_headers_invalid_json(self):
+        jws = jwts.make_jws({'message': 'hi'}, self.keypairs[:1])
+        header = json.dumps({
+            'typ': 'JWT',
+            'alg': 'NONE',
+        })
+
+        header_str = utils.base64url_encode(header).decode('utf-8')
+        bad_jws = '.'.join([header_str] + jws.split('.')[1:])
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            jwts.get_jws_headers(bad_jws)
 
 
 class TestKnownJWSs(TestCase):
@@ -730,7 +882,8 @@ class TestKnownJWSs(TestCase):
         self.keypair.identity = '12345'
 
     def tearDown(self):
-        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+        nonces.set_nonce_handlers(
+            nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_missing_nonce(self):
         jws = json.dumps({
@@ -748,4 +901,4 @@ class TestKnownJWSs(TestCase):
         })
         self.assertTrue(jwts.verify_jws(jws, self.keypair))
 
-    # TODO: add more
+        # TODO: add more

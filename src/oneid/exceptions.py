@@ -11,6 +11,7 @@ class InvalidFormatError(ValueError):
 
 
 class InvalidAlgorithmError(UnsupportedAlgorithm):
+
     def __init__(self, message="invalid 'alg' specified"):
         super(InvalidAlgorithmError, self).__init__(message)
 
@@ -28,4 +29,16 @@ class KeySignatureMismatch(InvalidSignature):
 
 
 class InvalidSignatureError(InvalidSignature):
+    pass
+
+
+class KeyHeaderMismatch(Exception):
+    pass
+
+
+class ReservedHeader(Exception):
+    pass
+
+
+class InvalidSignatureIndexes(Exception):
     pass
