@@ -1,6 +1,8 @@
 dependencies:
   override:
     - pyenv local 2.7.5 3.4.0 3.5.0
+  pre:
+    - pip install -r dev_requirements.txt
 
 test:
   pre:
