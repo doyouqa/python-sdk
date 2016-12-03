@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
 
+_BACKEND = default_backend()
+
 
 class ServiceCreator(object):
     """
@@ -181,7 +183,7 @@ def create_secret_key(output=None):
     :param output: Path to save the secret key
     :return: oneid.keychain.Keypair
     """
-    secret_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    secret_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     # Save the secret key bytes to a secure file
@@ -209,7 +211,7 @@ def encrypt_attr_value(attr_value, aes_key):
     :return: Dictionary with base64 encoded cipher text and base 64 encoded iv
     """
     iv = os.urandom(16)
-    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=default_backend())
+    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=_BACKEND)
     encryptor = cipher_alg.encryptor()
     encr_value = encryptor.update(utils.to_bytes(attr_value)) + encryptor.finalize()
     encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
@@ -239,7 +241,7 @@ def decrypt_attr_value(attr_ct, aes_key):
     cipher_alg = Cipher(
         algorithms.AES(aes_key),
         modes.GCM(iv, tag, min_tag_length=8),
-        backend=default_backend()
+        backend=_BACKEND
     )
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ct) + decryptor.finalize()

@@ -31,6 +31,8 @@ KEYSIZE_BYTES = (KEYSIZE // 8)
 
 logger = logging.getLogger(__name__)
 
+_BACKEND = default_backend()
+
 
 class Credentials(object):
     """
@@ -77,7 +79,7 @@ class ProjectCredentials(Credentials):
         cipher_alg = Cipher(
             algorithms.AES(self._encryption_key),
             modes.GCM(iv),
-            backend=default_backend()
+            backend=_BACKEND
         )
         encryptor = cipher_alg.encryptor()
         encr_value = encryptor.update(utils.to_bytes(plain_text)) + encryptor.finalize()
@@ -121,7 +123,7 @@ class ProjectCredentials(Credentials):
         ct = tag_ct[:-ts]
         cipher_alg = Cipher(algorithms.AES(self._encryption_key),
                             modes.GCM(iv, tag, min_tag_length=8),
-                            backend=default_backend())
+                            backend=_BACKEND)
         decryptor = cipher_alg.decryptor()
         return decryptor.update(ct) + decryptor.finalize()
 
@@ -217,12 +219,12 @@ class Keypair(BaseKeypair):
         :return: :class:`~oneid.keychain.Keypair` instance
         """
         if key_bytes:
-            secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, default_backend())
+            secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, _BACKEND)
             return cls(secret_bytes=secret_bytes)
 
         if file_adapter.file_exists(path):
             with file_adapter.read_file(path) as pem_data:
-                secret_bytes = load_pem_private_key(pem_data, None, default_backend())
+                secret_bytes = load_pem_private_key(pem_data, None, _BACKEND)
                 return cls(secret_bytes=secret_bytes)
 
     @classmethod
@@ -245,7 +247,7 @@ class Keypair(BaseKeypair):
 
         if public_bytes:
             ret = cls()
-            ret._public_key = load_pem_public_key(public_bytes, default_backend())
+            ret._public_key = load_pem_public_key(public_bytes, _BACKEND)
 
         return ret
 
@@ -257,7 +259,7 @@ class Keypair(BaseKeypair):
         :param path: der formatted key
         :return:
         """
-        secret_bytes = load_der_private_key(der_key, None, default_backend())
+        secret_bytes = load_der_private_key(der_key, None, _BACKEND)
         return cls(secret_bytes=secret_bytes)
 
     @classmethod
@@ -269,7 +271,7 @@ class Keypair(BaseKeypair):
         :param public_key: der formatted key
         :return: :class:`~oneid.keychain.Keypair` instance
         """
-        pub = load_der_public_key(public_key, default_backend())
+        pub = load_der_public_key(public_key, _BACKEND)
 
         new_token = cls()
         new_token._public_key = pub
