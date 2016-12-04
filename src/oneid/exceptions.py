@@ -42,3 +42,15 @@ class ReservedHeader(Exception):
 
 class InvalidSignatureIndexes(Exception):
     pass
+
+
+class IdentityRequired(ValueError):
+    pass
+
+
+class InvalidRecipient(Exception):
+    pass
+
+
+class DecryptionFailed(Exception):
+    pass

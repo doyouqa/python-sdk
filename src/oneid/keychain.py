@@ -7,6 +7,7 @@ Keys should be kept in a secure storage enclave.
 import os
 
 import base64
+import struct
 import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -20,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.utils \
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHash
 from cryptography.utils import int_to_bytes, int_from_bytes
 
 from . import utils, exceptions, file_adapter
@@ -170,6 +172,9 @@ class BaseKeypair(object):
     def sign(self, payload):
         raise NotImplementedError
 
+    def ecdh(self, peer_keypair, algorithm='A256GCM', party_u_info=None, party_v_info=None):
+        raise NotImplementedError
+
     def save(self, *args, **kwargs):
         """
         Save a key.
@@ -180,6 +185,26 @@ class BaseKeypair(object):
         :return: Bool Success
         """
         raise NotImplementedError
+
+    def _calc_otherinfo(self, algorithm, party_u_info, party_v_info):
+        """
+        Broken out so testing can override to inject CAVP vector data
+        """
+        return (
+            _len_bytes(algorithm) +
+            _len_bytes(party_u_info) +
+            _len_bytes(party_v_info) +
+            utils.to_bytes(struct.pack(">I", 256))
+        )
+
+    def _derive_ecdh(self, raw_key, otherinfo):
+        ckdf = ConcatKDFHash(
+            algorithm=hashes.SHA256(),
+            length=32,
+            otherinfo=otherinfo,
+            backend=_BACKEND,
+        )
+        return ckdf.derive(raw_key)
 
 
 class Keypair(BaseKeypair):
@@ -413,6 +438,32 @@ class Keypair(BaseKeypair):
         b64_signature = utils.base64url_encode(str_sig)
         return b64_signature
 
+    def ecdh(self, peer_keypair, algorithm='A256GCM', party_u_info=None, party_v_info=None):
+        """
+        Derive a shared symmetric key for encrypting data to a given recipient
+
+        :param peer_keypair: Public key of the recipient
+        :type peer_keypair: :py:class:`~oneid.keychain.Keypair`
+        :param algorithm: The algorithm associated with the operation (defaults to 'A256GCM')
+        :type algorithm: str
+        :param party_u_info: shared identifying information about the sender (optional)
+        :type party_u_info: str or bytes
+        :param party_v_info: shared identifying information about the recipient (optional)
+        :type party_v_info: str or bytes
+        :returns: a 256-bit encryption key
+        :return_type: bytes
+        :raises InvalidFormatError: if self is not a private key
+        """
+        if not self._private_key:
+            raise exceptions.InvalidFormatError
+        raw_key = self._raw_ecdh(peer_keypair)
+        otherinfo = self._calc_otherinfo(algorithm, party_u_info, party_v_info)
+        ret = self._derive_ecdh(raw_key, otherinfo)
+
+        del raw_key
+
+        return ret
+
     @property
     def public_key(self):
         """
@@ -442,3 +493,12 @@ class Keypair(BaseKeypair):
         :return: Public Key in PEM format
         """
         return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+
+    def _raw_ecdh(self, peer_keypair):
+        return self._private_key.exchange(ec.ECDH(), peer_keypair.public_key)
+
+
+def _len_bytes(data):
+    if not data:
+        return utils.to_bytes('')
+    return utils.to_bytes(struct.pack(">I", len(data))) + utils.to_bytes(data)

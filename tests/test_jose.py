@@ -13,7 +13,7 @@ from unittest import TestCase
 
 # from nose.tools import nottest
 
-from oneid import jose, jwts, service, nonces, utils
+from oneid import jose, jwes, jwts, service, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,83 @@ class TestIsJWS(TestCase):
         self.assertTrue(jose.is_jws(self.jwt))
 
 
+class TestIsJWE(TestCase):
+    def setUp(self):
+        # self.tmpdir = tempfile.mkdtemp()
+        # os.environ['HOME'] = self.tmpdir
+        # nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
+
+        self.claim_keys = ['a', 'b', 'c', 'héllo!', '😬']
+        self.raw_claims = {k: 0 for k in self.claim_keys}
+
+        self.sender_keypair = service.create_secret_key()
+        self.sender_keypair.identity = str(uuid.uuid4())
+
+        self.recipient_keypair = service.create_secret_key()
+        self.recipient_keypair.identity = str(uuid.uuid4())
+
+        self.jwe = jwes.make_jwe(self.raw_claims, self.sender_keypair, self.recipient_keypair)
+
+    def tearDown(self):
+        # nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+        pass
+
+    def test_is_jwe(self):
+        self.assertTrue(jose.is_jwe(self.jwe))
+        self.assertTrue(jose.is_jwe(json.loads(self.jwe)))
+        self.assertFalse(jose.is_jwe([]))
+        self.assertFalse(jose.is_jwe("[]"))
+
+        for k in ['iv', 'ciphertext', 'tag', 'recipients']:
+            jwe_json = json.loads(self.jwe)
+            del jwe_json[k]
+            self.assertFalse(jose.is_jwe(json.dumps(jwe_json)))
+
+
+class TestJWESharedHeader(TestCase):
+    def setUp(self):
+        self.claim_keys = ['a', 'b', 'c', 'héllo!', '😬']
+        self.raw_claims = {k: 0 for k in self.claim_keys}
+
+    def tearDown(self):
+        pass
+
+    def test_unprotected(self):
+        jwe = {
+            'iv': '1234',
+            'ciphertext': 'hello',
+            'tag': '4567',
+            'recipients': [{}],
+            'unprotected': self.raw_claims,
+        }
+        self.assertDictEqual(jose.get_jwe_shared_header(jwe), self.raw_claims)
+
+    def test_protected(self):
+        jwe = {
+            'iv': '1234',
+            'ciphertext': 'hello',
+            'tag': '4567',
+            'recipients': [{}],
+            'protected': utils.base64url_encode(json.dumps(self.raw_claims)),
+        }
+        self.assertDictEqual(jose.get_jwe_shared_header(jwe), self.raw_claims)
+
+    def test_protected_overrides(self):
+        jwe = {
+            'iv': '1234',
+            'ciphertext': 'hello',
+            'tag': '4567',
+            'recipients': [{}],
+            'unprotected': {k: 'bogus' for k in self.claim_keys},
+            'protected': utils.base64url_encode(json.dumps(self.raw_claims)),
+        }
+        self.assertDictEqual(jose.get_jwe_shared_header(jwe), self.raw_claims)
+
+    def test_invalid_jwe(self):
+        with self.assertRaises(exceptions.InvalidFormatError):
+            jose.get_jwe_shared_header({})
+
+
 class TestNormalizeClaims(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
@@ -66,6 +143,13 @@ class TestNormalizeClaims(TestCase):
             'jti': nonces.make_nonce(),
             'nbf': 12345,
             'exp': 12346,
+        }
+        self.dummy_jwe = {
+            'iv': '1234',
+            'ciphertext': 'hello',
+            'tag': '4567',
+            'recipients': [{}],
+            'unprotected': self.standard_claims,
         }
 
     def tearDown(self):
@@ -98,6 +182,20 @@ class TestNormalizeClaims(TestCase):
         for claim, value in self.standard_claims.items():
             self.assertIn(claim, claims)
             self.assertEqual(claims[claim], value)
+
+    def test_existing_standard_claims_in_jwe(self):
+        claims = jose.normalize_claims(self.dummy_jwe)
+
+        for claim, value in self.standard_claims.items():
+            self.assertIn(claim, claims)
+            self.assertEqual(claims[claim], value)
+
+    def test_existing_standard_claims_in_jwe_with_issuer(self):
+        iss = 'me'
+        claims = jose.normalize_claims(self.dummy_jwe, iss)
+
+        self.assertIn('iss', claims)
+        self.assertEqual(claims['iss'], iss)
 
     def test_using_existing_expiration_in_nonce(self):
         datestr = '2016-12-03T15:12:15Z'

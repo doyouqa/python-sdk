@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from dateutil import tz
 
-from . import nonces, utils
+from . import nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +42,66 @@ def is_jws(jws, json_decoder=json.loads):
     return True
 
 
+def is_jwe(jwe, json_decoder=json.loads):
+    REQUIRED_FIELDS = ['iv', 'ciphertext', 'tag', 'recipients']
+
+    if isinstance(jwe, six.string_types):
+        jwe = json_decoder(jwe)
+
+    if not isinstance(jwe, dict):
+        return False
+
+    if not all([k in jwe for k in REQUIRED_FIELDS]):
+        return False
+
+    return True
+
+
+def get_jwe_shared_header(jwe, json_decoder=json.loads):
+    """
+    Extract shared (non-encrypted) header values from a JWE
+
+    :param jwe: JWE to extract header values from
+    :type jwe: str or dict
+    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
+    :returns: claims
+    :rtype: dict
+    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWE
+    """
+    jwe_dict = as_dict(jwe, json_decoder)
+
+    if not is_jwe(jwe_dict):
+        logger.debug('attempt to get header values from a non-jwe (type: %s): %s', type(jwe), jwe)
+        raise exceptions.InvalidFormatError
+
+    shared_header = jwe_dict.get('unprotected', {})
+
+    if 'protected' in jwe_dict:
+        protected_b64 = jwe_dict['protected']
+        protected_dict = json.loads(utils.to_string(utils.base64url_decode(protected_b64)))
+        shared_header.update(protected_dict)
+
+    return shared_header
+
+
 def normalize_claims(raw_claims, issuer=None):
     exp = None
     nbf = None
     nonce = None
 
-    exp = raw_claims.get('exp', exp)
-    nbf = raw_claims.get('nbf', nbf)
-    nonce = raw_claims.get('jti', nonce)
-    if not issuer:
-        issuer = raw_claims.get('iss')
+    if is_jwe(raw_claims):
+        headers = get_jwe_shared_header(raw_claims)
+        exp = headers.get('exp', exp)
+        nbf = headers.get('nbf', nbf)
+        nonce = headers.get('jti', nonce)
+        if not issuer:
+            issuer = headers.get('iss')
+    else:
+        exp = raw_claims.get('exp', exp)
+        nbf = raw_claims.get('nbf', nbf)
+        nonce = raw_claims.get('jti', nonce)
+        if not issuer:
+            issuer = raw_claims.get('iss')
 
     if exp and not nonce:
         # use message expiration for nonce expiration
