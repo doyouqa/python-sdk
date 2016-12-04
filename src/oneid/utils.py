@@ -7,7 +7,13 @@ import six
 import base64
 import logging
 
+from datetime import datetime
+from dateutil import parser, tz
+
 logger = logging.getLogger(__name__)
+
+UTC = tz.tzutc()
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def to_bytes(data):
@@ -16,6 +22,16 @@ def to_bytes(data):
 
 def to_string(data):
     return data if isinstance(data, six.text_type) else data.decode('utf-8')
+
+
+def to_timestamp(dt):
+    if not isinstance(dt, datetime):
+        dt = parser.parse(dt)
+    return (dt - EPOCH).total_seconds()
+
+
+def from_timestamp(timestamp):
+    return datetime.fromtimestamp(timestamp, UTC)
 
 
 def base64url_encode(msg):
