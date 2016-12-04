@@ -6,13 +6,11 @@ Keys should be kept in a secure storage enclave.
 """
 import os
 
-import binascii
 import base64
 import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
     load_pem_public_key, load_der_private_key, load_der_public_key
@@ -22,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric.utils \
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
+from cryptography.utils import int_to_bytes, int_from_bytes
 
 from . import utils
 from . import file_adapter
@@ -183,7 +182,7 @@ class Keypair(BaseKeypair):
         self._public_key = None
 
         if kwargs.get('secret_bytes') and \
-                isinstance(kwargs['secret_bytes'], EllipticCurvePrivateKey):
+                isinstance(kwargs['secret_bytes'], ec.EllipticCurvePrivateKey):
             self._load_secret_bytes(kwargs['secret_bytes'])
 
     def _load_secret_bytes(self, secret_bytes):
@@ -292,8 +291,8 @@ class Keypair(BaseKeypair):
         sig_r_bin = raw_sig[:len(raw_sig)//2]
         sig_s_bin = raw_sig[len(raw_sig)//2:]
 
-        sig_r = unpack_bytes(sig_r_bin)
-        sig_s = unpack_bytes(sig_s_bin)
+        sig_r = int_from_bytes(sig_r_bin, 'big')
+        sig_s = int_from_bytes(sig_s_bin, 'big')
 
         sig = encode_dss_signature(sig_r, sig_s)
         signer = self.public_key.verifier(sig, ec.ECDSA(hashes.SHA256()))
@@ -314,8 +313,8 @@ class Keypair(BaseKeypair):
 
         r, s = decode_dss_signature(signature)
 
-        br = int2bytes(r, KEYSIZE_BYTES)
-        bs = int2bytes(s, KEYSIZE_BYTES)
+        br = int_to_bytes(r, KEYSIZE_BYTES)
+        bs = int_to_bytes(s, KEYSIZE_BYTES)
         str_sig = br + bs
         b64_signature = utils.base64url_encode(str_sig)
         return b64_signature
@@ -349,13 +348,3 @@ class Keypair(BaseKeypair):
         :return: Public Key in PEM format
         """
         return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
-
-
-def int2bytes(i, numbytes=None):
-    hex_string = '%x' % i
-    n = numbytes and (numbytes*2) or len(hex_string)
-    return binascii.unhexlify(hex_string.zfill(n + (n & 1)))
-
-
-def unpack_bytes(stringbytes):
-    return int(binascii.hexlify(stringbytes), 16)
