@@ -10,7 +10,7 @@ import unittest
 
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
-from oneid import keychain, utils
+from oneid import keychain, service, utils
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TestCredentials(unittest.TestCase):
     def setUp(self):
         self.uuid = uuid.uuid4()
-        self.keypair = keychain.Keypair()
+        self.keypair = service.create_secret_key()
 
     def test_basic_object(self):
         creds = keychain.Credentials(self.uuid, self.keypair)
