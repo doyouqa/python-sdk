@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 
 import tempfile
+import base64
 import logging
 
 import unittest
@@ -155,17 +156,48 @@ class TestEncryptDecryptAttributes(unittest.TestCase):
         self.key = service.create_aes_key()
         self.data = 'hoôray!🎉'
 
-    def test_encrypt(self):
-        enc = service.encrypt_attr_value(self.data, self.key)
+    def test_encrypt_with_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
         self.assertIn("cipher", enc)
         self.assertIn("mode", enc)
         self.assertIn("ts", enc)
+        self.assertIn("header", enc)
+        self.assertIn("ciphertext", enc)
+        self.assertIn("tag", enc)
         self.assertEqual(enc.get("cipher"), "aes")
         self.assertEqual(enc.get("mode"), "gcm")
         self.assertEqual(enc.get("ts"), 128)
 
-    def test_decrypt(self):
-        enc = service.encrypt_attr_value(self.data, self.key)
+    def test_encrypt_without_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        self.assertNotIn("cipher", enc)
+        self.assertNotIn("mode", enc)
+        self.assertNotIn("ts", enc)
+        self.assertIn("header", enc)
+        self.assertIn("ciphertext", enc)
+        self.assertIn("tag", enc)
+
+    def test_decrypt_with_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_without_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_without_legacy_follow_standard_encoding(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        enc['iv'] = base64.b64encode(utils.base64url_decode(enc['iv']))
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_only_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
+        del enc['header']
+        del enc['ciphertext']
+        del enc['tag']
         decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
         self.assertEqual(decrypted, self.data)
 
