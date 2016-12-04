@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives.keywrap import aes_key_wrap, aes_key_unwrap
 
 from .keychain import Keypair
 from . import jwts
@@ -282,3 +283,11 @@ def decrypt_attr_value(attr_ct, aes_key):
     )
     decryptor = cipher_alg.decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+def key_wrap(wrapping_key, key_to_wrap):
+    return aes_key_wrap(wrapping_key, key_to_wrap, _BACKEND)
+
+
+def key_unwrap(wrapping_key, wrapped_key):
+    return aes_key_unwrap(wrapping_key, wrapped_key, _BACKEND)
