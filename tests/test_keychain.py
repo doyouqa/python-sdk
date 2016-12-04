@@ -10,7 +10,7 @@ import unittest
 
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
-from oneid import keychain, service, utils
+from oneid import keychain, service, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -212,3 +212,100 @@ class TestKeypair(unittest.TestCase):
             pem = f.read()
             keypair = keychain.Keypair.from_public_pem(pem)
             self.assertEqual(keypair.public_key_pem, pem)
+
+    def test_private_jwk(self):
+        keypair = service.create_secret_key()
+        jwk = keypair.jwk
+        self.assertIn('kty', jwk)
+        self.assertIn('crv', jwk)
+        self.assertIn('x', jwk)
+        self.assertIn('y', jwk)
+        self.assertIn('d', jwk)
+
+        self.assertNotIn('kid', jwk)
+
+        self.assertEqual(jwk['kty'], 'EC')
+        self.assertEqual(jwk['crv'], 'P-256')
+
+        self.assertEqual(jwk, keypair.jwk_private)
+        self.assertNotEqual(jwk, keypair.jwk_public)
+
+    def test_jwk_with_identity(self):
+        keypair = service.create_secret_key()
+        jwk = keypair.jwk
+
+        self.assertNotIn('kid', jwk)
+
+        identity = str(uuid.uuid4())
+        keypair.identity = identity
+
+        jwk = keypair.jwk
+        self.assertIn('kid', jwk)
+
+        self.assertEqual(identity, jwk['kid'])
+
+    def test_public_jwk(self):
+        der = base64.b64decode(
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
+            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
+        )
+        keypair = keychain.Keypair.from_public_der(der)
+        jwk = keypair.jwk
+        self.assertIn('kty', jwk)
+        self.assertIn('crv', jwk)
+        self.assertIn('x', jwk)
+        self.assertIn('y', jwk)
+        self.assertNotIn('d', jwk)
+
+        self.assertNotIn('kid', jwk)
+
+        self.assertEqual(jwk['kty'], 'EC')
+        self.assertEqual(jwk['crv'], 'P-256')
+
+        self.assertEqual(jwk, keypair.jwk_public)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            keypair.jwk_private
+
+    def test_from_private_jwk(self):
+        keypair = service.create_secret_key()
+        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
+        self.assertEqual(keypair.secret_as_der, keypair2.secret_as_der)
+        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
+
+    def test_from_private_jwk_with_identity(self):
+        keypair = service.create_secret_key()
+        jwk = keypair.jwk
+
+        keypair2 = keychain.Keypair.from_jwk(jwk)
+        self.assertIsNone(keypair2.identity)
+
+        identity = str(uuid.uuid4())
+        jwk['kid'] = identity
+
+        keypair3 = keychain.Keypair.from_jwk(jwk)
+        self.assertIsNotNone(keypair3.identity)
+        self.assertEqual(identity, keypair3.identity)
+
+    def test_from_public_jwk(self):
+        der = base64.b64decode(
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
+            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
+        )
+        keypair = keychain.Keypair.from_public_der(der)
+        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
+        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
+
+    def test_from_invalid_jwk_type(self):
+        keypair = service.create_secret_key()
+        jwk = keypair.jwk
+        jwk['kty'] = 'RSA'
+        with self.assertRaises(ValueError):
+            keypair = keychain.Keypair.from_jwk(jwk)
+
+    def test_from_invalid_jwk_curve(self):
+        keypair = service.create_secret_key()
+        jwk = keypair.jwk
+        jwk['crv'] = 'P-384'
+        with self.assertRaises(ValueError):
+            keypair = keychain.Keypair.from_jwk(jwk)

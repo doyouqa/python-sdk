@@ -22,8 +22,7 @@ from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
 from cryptography.utils import int_to_bytes, int_from_bytes
 
-from . import utils
-from . import file_adapter
+from . import utils, exceptions, file_adapter
 
 KEYSIZE = 256
 KEYSIZE_BYTES = (KEYSIZE // 8)
@@ -153,6 +152,18 @@ class BaseKeypair(object):
     def secret_as_pem(self):
         raise NotImplementedError
 
+    @property
+    def jwk(self):
+        raise NotImplementedError
+
+    @property
+    def jwk_private(self):
+        raise NotImplementedError
+
+    @property
+    def jwk_public(self):
+        raise NotImplementedError
+
     def verify(self, payload, signature):
         raise NotImplementedError
 
@@ -276,6 +287,89 @@ class Keypair(BaseKeypair):
         new_token._public_key = pub
 
         return new_token
+
+    @classmethod
+    def from_jwk(cls, jwk):
+        """
+        Create a :py:class:`~oneid.keychain.Keypair` from a JWK
+
+        :param jwk: oneID-standard JWK
+        :return: :py:class:`~oneid.keychain.Keypair` instance
+        :raises InvalidFormatError: if not a valid JWK
+        """
+        if jwk['kty'] != 'EC' or jwk['crv'] != 'P-256':
+            raise exceptions.InvalidFormatError
+
+        public_numbers = ec.EllipticCurvePublicNumbers(
+            x=int_from_bytes(utils.base64url_decode(jwk['x']), 'big'),
+            y=int_from_bytes(utils.base64url_decode(jwk['y']), 'big'),
+            curve=ec.SECP256R1(),
+        )
+
+        ret = cls()
+        ret._public_key = public_numbers.public_key(_BACKEND)
+
+        if 'd' in jwk:
+            private_numbers = ec.EllipticCurvePrivateNumbers(
+                private_value=int_from_bytes(utils.base64url_decode(jwk['d']), 'big'),
+                public_numbers=public_numbers,
+            )
+            ret._private_key = private_numbers.private_key(_BACKEND)
+
+        if 'kid' in jwk:
+            ret.identity = jwk['kid']
+
+        return ret
+
+    @property
+    def jwk(self):
+        """
+        The keys as a JSON Web Key (JWK)
+        Private key will be included only if present
+
+        :return: oneID-standard JWK
+        """
+        return self.get_jwk(True)
+
+    @property
+    def jwk_public(self):
+        """
+        The public key as a JSON Web Key (JWK)
+
+        :return: oneID-standard JWK
+        """
+        return self.get_jwk(False)
+
+    @property
+    def jwk_private(self):
+        """
+        The private key as a JSON Web Key (JWK)
+
+        :return: oneID-standard JWK
+        :raises InvalidFormatError: if not a private key
+        """
+        if not self._private_key:
+            raise exceptions.InvalidFormatError
+        return self.get_jwk(True)
+
+    def get_jwk(self, include_secret):
+        public_numbers = self.public_key.public_numbers()
+        ret = {
+          "kty": "EC",
+          "crv": "P-256",
+          "x": utils.to_string(utils.base64url_encode(int_to_bytes(public_numbers.x))),
+          "y": utils.to_string(utils.base64url_encode(int_to_bytes(public_numbers.y))),
+        }
+
+        if self.identity:
+            ret['kid'] = str(self.identity)
+
+        if self._private_key and include_secret:
+            private_numbers = self._private_key.private_numbers()
+            d = int_to_bytes(private_numbers.private_value)
+            ret['d'] = utils.to_string(utils.base64url_encode(d))
+
+        return ret
 
     def verify(self, payload, signature):
         """
