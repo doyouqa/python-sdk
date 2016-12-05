@@ -6,7 +6,7 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, jwts, exceptions
+from oneid import session, service, keychain, jwts, nonces, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ def _handle_auth_endpoint(headers=None, data=None):
             key_bytes=TestSession.oneid_key_bytes,
         )
         oneid_key.identity = 'oneID'
+        jwts.verify_jws(data)
         jws = jwts.extend_jws_signatures(data, oneid_key)
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
@@ -131,6 +132,7 @@ class TestBaseSession(unittest.TestCase):
 
 class TestDeviceSession(unittest.TestCase):
     def setUp(self):
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.mock_id_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.id_key_bytes
         )
@@ -190,6 +192,9 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_resetC_keypair.identity,
             self.mock_resetC_keypair
         )
+
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
 
     def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials)
@@ -262,6 +267,7 @@ class TestDeviceSession(unittest.TestCase):
 
 class TestServerSession(unittest.TestCase):
     def setUp(self):
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         mock_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.id_key_bytes
         )
@@ -349,6 +355,9 @@ class TestServerSession(unittest.TestCase):
         }
         self.fake_config['authenticate']['edge_device'] = self.fake_config['authenticate']['server']
 
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
     def test_init_from_config(self):
         sess = session.ServerSession(config={})
         with self.assertRaises(AttributeError):
@@ -391,29 +400,8 @@ class TestServerSession(unittest.TestCase):
 
         verified = jwts.verify_jws(authenticated_data, keypairs)
         self.assertIsInstance(verified, dict)
-        self.assertIn('message', verified)
-
-    @mock.patch('oneid.session.request', side_effect=mock_request)
-    def test_prepare_message_by_param(self, mock_request):
-        sess = session.ServerSession(
-            identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
-            config=self.fake_config,
-        )
-
-        authenticated_data = sess.prepare_message(
-            raw_message='hello',
-        )
-
-        keypairs = [
-            self.oneid_credentials.keypair,
-            self.project_credentials.keypair,
-        ]
-
-        verified = jwts.verify_jws(authenticated_data, keypairs)
-        self.assertIsInstance(verified, dict)
-        self.assertIn('message', verified)
+        self.assertIn('a', verified)
+        self.assertIn('b', verified)
 
     @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
     def test_prepare_message_failed_cosign(self, mock_request):

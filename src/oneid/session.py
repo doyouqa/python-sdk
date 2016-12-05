@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import os
-import json
 import yaml
 import collections
 import logging
@@ -125,7 +124,7 @@ class DeviceSession(SessionBase):
 
     def verify_message(self, message, rekey_credentials=None):
         """
-        Verify a message received from the server
+        Verify a message received from the Project
 
         :param message: JSON formatted JWS with at least two signatures
         :param rekey_credentials: List of :class:`~oneid.keychain.Credential`
@@ -209,12 +208,12 @@ class ServerSession(SessionBase):
         if rekey_credentials:
             keypairs += [credentials.keypair for credentials in rekey_credentials]
 
-        message = kwargs.get('raw_message', json.dumps(kwargs))
+        jws = jwts.make_jws(kwargs, self.identity_credentials.keypair)
 
         oneid_response = self.authenticate.server(
             project_id=self.project_credentials.keypair.identity,
             identity=self.identity_credentials.keypair.identity,
-            message=message
+            body=jws
         )
 
         if not oneid_response:
