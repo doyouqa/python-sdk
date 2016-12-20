@@ -4,6 +4,7 @@ import contextlib
 
 import boto3
 import botocore
+import time
 
 from .. import utils
 
@@ -34,17 +35,20 @@ def prepare_file_directory(filename):
 
 @contextlib.contextmanager
 def read_file(filename, binary):
+    start_time = time.time()
     obj = _s3().Object(*_parse_path(filename))
     # data = obj.get(**settings.AWS_S3_OBJECT_PARAMS)['Body'].read()
     data = obj.get()['Body'].read()
+    print 's3_handler: read_file={0}'.format(start_time - time.time())
     yield data if binary else utils.to_string(data)
 
 
 def write_file(filename, data, binary):
+    start_time = time.time()
     obj = _s3().Object(*_parse_path(filename))
     data = data if binary else utils.to_string(data)
     obj.put(Body=data, ServerSideEncryption='AES256')  # , **settings.AWS_S3_OBJECT_PARAMS)
-
+    print 's3_handler: write_file={0}'.format(start_time - time.time())
 
 __s3 = None
 
@@ -75,7 +79,9 @@ def _bucket_exists(bucket_name):
     # http://boto3.readthedocs.io/en/latest/guide/migrations3.html#accessing-a-bucket
 
     try:
+        start_time = time.time()
         _s3().meta.client.head_bucket(Bucket=bucket_name)
+        print 's3_handler: _bucket_exists={0}'.format(start_time - time.time())
         return True
     except botocore.exceptions.ClientError as e:
         error_code = int(e.response['Error']['Code'])
@@ -87,7 +93,9 @@ def _bucket_exists(bucket_name):
 def _object_exists(bucket_name, key_name):
 
     try:
+        start_time = time.time()
         _s3().meta.client.head_object(Bucket=bucket_name, Key=key_name)
+        print 's3_handler: _object_exists={0}'.format(start_time - time.time())
         return True
     except botocore.exceptions.ClientError as e:
         error_code = int(e.response['Error']['Code'])
