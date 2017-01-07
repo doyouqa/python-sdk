@@ -91,30 +91,21 @@ class TestPlainFileHandler(TestCase):
         os.rmdir(dirname)
 
     def test_read_file(self):
-        with plain_file_handler.read_file(self.filename, True) as data:
+        with plain_file_handler.read_file(self.filename) as data:
             self.assertEqual(data, self.data)
 
-        with plain_file_handler.read_file(self.filename, False) as data:
-            self.assertEqual(utils.to_bytes(data), self.data)
-
-    def _check_write_file(self, binary):
-        filename = None
-
+    def test_write_file(self):
         with tempfile.NamedTemporaryFile(delete=True) as tf:
             filename = tf.name
         self.assertIsNotNone(filename)
 
-        data = self.data if binary else 'hello'
+        data = self.data
 
-        plain_file_handler.write_file(filename, data, binary)
+        plain_file_handler.write_file(filename, data)
 
-        mode = 'r' + ('b' if binary else '')
+        mode = 'rb'
 
         with open(filename, mode) as f:
             self.assertEqual(f.read(), data)
 
         os.remove(filename)
-
-    def test_write_file(self):
-        self._check_write_file(True)
-        self._check_write_file(False)

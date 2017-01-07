@@ -24,7 +24,6 @@ from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
 
 from . import utils
-from . import file_adapter
 
 KEYSIZE = 256
 KEYSIZE_BYTES = (KEYSIZE // 8)
@@ -85,37 +84,27 @@ class ProjectCredentials(Credentials):
         iv_b64 = base64.b64encode(iv)
         return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
 
-    def decrypt(self, cipher_text, iv=None, cipher='aes', mode='gcm', tag_size=128):
+    def decrypt(self, ct, iv=None, cipher='aes', mode='gcm', ts=128):
         """
         Decrypt cipher text that was encrypted with the project encryption key
 
-        :param cipher_text: Encrypted text or dict (as returned by :py:encrypt:)
+        :param ct: Encrypted text
         :param iv: Base64 encoded initialization vector
         :param mode: [deprecated]
         :param tag_size: [deprecated]
         :returns: plain text
         :return_type: bytes
         """
-        if isinstance(cipher_text, dict):
-            if 'cipher' not in cipher_text or cipher_text['cipher'].lower() != 'aes' or \
-               'mode' not in cipher_text or cipher_text['mode'].lower() != 'gcm' or \
-               'ts' not in cipher_text or cipher_text['ts'] != 128:
-                raise ValueError('Invalid encryption dict parameters')
-            b64_ct = cipher_text.get('ct')
-            iv = cipher_text.get('iv')
-        else:
-            if cipher.lower() != 'aes' or \
-               mode.lower() != 'gcm' or \
-               tag_size != 128:  # pragma: no cover
-                logger.warning('ignoring invalid, deprecated parameters')
-
-            b64_ct = cipher_text
+        if cipher.lower() != 'aes' or \
+           mode.lower() != 'gcm' or \
+           ts != 128:  # pragma: no cover
+            logger.warning('ignoring invalid, deprecated parameters')
 
         if iv is None:
             raise ValueError('IV must be specified with using AES and GCM')
 
         iv = base64.b64decode(iv)
-        tag_ct = base64.b64decode(b64_ct)
+        tag_ct = base64.b64decode(ct)
         ts = 16  # 128 // 8
         tag = tag_ct[-ts:]
         ct = tag_ct[:-ts]
@@ -210,23 +199,17 @@ class Keypair(BaseKeypair):
         return self._private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     @classmethod
-    def from_secret_pem(cls, key_bytes=None, path=None):
+    def from_secret_pem(cls, key_bytes=None):
         """
         Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted private ECDSA key
 
         :return: :class:`~oneid.keychain.Keypair` instance
         """
-        if key_bytes:
-            secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, default_backend())
-            return cls(secret_bytes=secret_bytes)
-
-        if file_adapter.file_exists(path):
-            with file_adapter.read_file(path) as pem_data:
-                secret_bytes = load_pem_private_key(pem_data, None, default_backend())
-                return cls(secret_bytes=secret_bytes)
+        secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, default_backend())
+        return cls(secret_bytes=secret_bytes)
 
     @classmethod
-    def from_public_pem(cls, key_bytes=None, path=None):
+    def from_public_pem(cls, key_bytes=None):
         """
         Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted public ECDSA key
 
@@ -234,18 +217,11 @@ class Keypair(BaseKeypair):
 
         :return: :class:`~oneid.keychain.Keypair` instance
         """
-        ret = None
-        public_bytes = None
+        public_bytes = utils.to_bytes(key_bytes)
 
-        if key_bytes:
-            public_bytes = utils.to_bytes(key_bytes)
-        elif file_adapter.file_exists(path):
-            with file_adapter.read_file(path) as pem_data:
-                public_bytes = pem_data
-
-        if public_bytes:
-            ret = cls()
-            ret._public_key = load_pem_public_key(public_bytes, default_backend())
+        # TODO: create and call a constructor
+        ret = cls()
+        ret._public_key = load_pem_public_key(public_bytes, default_backend())
 
         return ret
 

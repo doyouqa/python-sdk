@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import os
 import json
 import yaml
-import collections
 import logging
 
 from requests import request
@@ -222,7 +221,7 @@ class ServerSession(SessionBase):
             raise exceptions.InvalidAuthentication
 
         stripped_response = jwts.remove_jws_signatures(
-            oneid_response, self.identity_credentials.id
+            oneid_response, [self.identity_credentials.id]
         )
         return jwts.extend_jws_signatures(stripped_response, keypairs)
 
@@ -243,7 +242,7 @@ class ServerSession(SessionBase):
         if not device_credentials:
             raise AttributeError
 
-        if not isinstance(device_credentials, collections.Iterable):
+        if not isinstance(device_credentials, list):
             device_credentials = [device_credentials]
 
         keypairs = [credential.keypair for credential in device_credentials]

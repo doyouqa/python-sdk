@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 import os
-import tempfile
 import uuid
 import base64
 import logging
@@ -69,7 +68,7 @@ class TestProjectCredentials(TestCredentials):
     def test_decrypt_dict(self):
         enc = self.project_credentials.encrypt(self.data)
 
-        cleartext = utils.to_string(self.project_credentials.decrypt(enc))
+        cleartext = utils.to_string(self.project_credentials.decrypt(**enc))
         self.assertEqual(cleartext, self.data)
 
     def test_decrypt_dict_invalid(self):
@@ -105,23 +104,6 @@ class TestKeypair(unittest.TestCase):
     BASE_PATH = os.path.dirname(__file__)
     x509_PATH = os.path.join(BASE_PATH, 'x509')
 
-    def test_load_pem_path(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_path_pkcs8(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_pkcs8_private_key.pem')
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_path_missing(self):
-        pem_path = None
-        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
-            pem_path = tf.name
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsNone(keypair)
-
     def test_load_pem_bytes(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
         with open(pem_path, 'rb') as f:
@@ -136,25 +118,12 @@ class TestKeypair(unittest.TestCase):
             keypair = keychain.Keypair.from_secret_pem(key_bytes=pem_data)
             self.assertIsInstance(keypair, keychain.Keypair)
 
-    def test_load_pem_public_path(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        keypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
     def test_load_public_pem_bytes(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
         with open(pem_path, 'rb') as f:
             pem_data = f.read()
             keypair = keychain.Keypair.from_public_pem(key_bytes=pem_data)
             self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_public_pem_path_missing(self):
-        pem_path = None
-        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
-            pem_path = tf.name
-
-        keypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsNone(keypair)
 
     def test_load_der_bytes(self):
         der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
@@ -187,12 +156,16 @@ class TestKeypair(unittest.TestCase):
 
     def test_public_key(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        pubkeypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsInstance(pubkeypair.public_key, EllipticCurvePublicKey)
+        with open(pem_path, 'rb') as f:
+            pem_bytes = f.read()
+            pubkeypair = keychain.Keypair.from_public_pem(pem_bytes)
+            self.assertIsInstance(pubkeypair.public_key, EllipticCurvePublicKey)
 
         pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        seckeypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(seckeypair.public_key, EllipticCurvePublicKey)
+        with open(pem_path, 'rb') as f:
+            pem_bytes = f.read()
+            seckeypair = keychain.Keypair.from_secret_pem(pem_bytes)
+            self.assertIsInstance(seckeypair.public_key, EllipticCurvePublicKey)
 
         # for branch coverage
         nullkeypair = keychain.Keypair()

@@ -11,8 +11,6 @@ IETF RFCs.
 """
 from __future__ import unicode_literals
 
-import six
-import collections
 import json
 import re
 import time
@@ -149,8 +147,8 @@ def make_jws(raw_claims, ordered_keypairs, multiple_sig_headers=None, json_encod
     :return: JWS
     """
 
-    if not isinstance(ordered_keypairs, collections.Iterable):
-        ordered_keypairs = [ordered_keypairs]
+    if not isinstance(ordered_keypairs, list):
+        raise TypeError("ordered_keypairs must be a list")
 
     multiple_sig_headers = _validated_headers(ordered_keypairs, multiple_sig_headers)
     multiple_sig_headers = _add_signature_indexes(multiple_sig_headers)
@@ -193,8 +191,8 @@ def extend_jws_signatures(
     ret = _jws_as_dict(jws, default_jwt_kid, json_decoder)
     payload = ret['payload']
 
-    if not isinstance(ordered_keypairs, collections.Iterable):
-        ordered_keypairs = [ordered_keypairs]
+    if not isinstance(ordered_keypairs, list):
+        raise TypeError("ordered_keypairs must be a list")
 
     multiple_sig_headers = _validated_headers(ordered_keypairs, multiple_sig_headers)
 
@@ -232,8 +230,8 @@ def remove_jws_signatures(jws, kids_to_remove, json_encoder=json.dumps, json_dec
     """
     jws_dict = json_decoder(jws)
 
-    if isinstance(kids_to_remove, six.string_types + (six.binary_type,)):
-        kids_to_remove = [kids_to_remove]
+    if not isinstance(kids_to_remove, list):
+        raise TypeError("kids_to_remove must be a list")
 
     return json_encoder({
         'payload': jws_dict['payload'],
@@ -328,8 +326,8 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
         is not valid
     """
 
-    if keypairs and not isinstance(keypairs, collections.Iterable):
-        keypairs = [keypairs]
+    if keypairs and not isinstance(keypairs, list):
+        raise TypeError("keypairs must be a list")
 
     jws = utils.to_string(jws)
 
@@ -524,7 +522,7 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
     if strict_jwt:
         keys = {k: 1 for k in header}
         for key, value in MINIMAL_JWT_HEADER.items():
-            if key not in header or header.get(key, None) != value:
+            if header.get(key) != value:
                 logger.debug(
                     'invalid header, missing or incorrect %s: %s', key, header)
                 raise exceptions.InvalidFormatError
@@ -535,11 +533,11 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
             logger.debug('invalid header, extra elements: %s', header)
             raise exceptions.InvalidFormatError
     else:
-        if 'typ' not in header or header['typ'] not in ['JWT', 'JOSE', 'JOSE+JSON']:
+        if header.get('typ') not in ['JWT', 'JOSE', 'JOSE+JSON']:
             logger.debug('invalid "typ" in header: %s', header)
             raise exceptions.InvalidFormatError
 
-        if 'alg' not in header or header['alg'] != 'ES256':
+        if header.get('alg') != 'ES256':
             logger.debug('invalid "alg" in header: %s', header)
             raise exceptions.InvalidAlgorithmError
 

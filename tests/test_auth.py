@@ -80,22 +80,8 @@ class TestAuth(unittest.TestCase):
         })
         self.assertEqual(result, data)
 
-    @mock.patch('requests.post', side_effect=mock_request_success)
-    def test_authentication_success_json(self, mock_request):
-        data = {
-            "nonces": 1,
-            "uid": 2,
-            "attr_claim_tokens": 3,
-        }
-        result = self.service.validate(json.dumps(data))
-        self.assertNotEqual(result, data)
-        data.update({
-            "errorcode": 0,
-        })
-        self.assertEqual(result, data)
-
     @mock.patch('requests.post', side_effect=mock_request_failure)
-    def test_authentication_failure(self, mock_request):
+    def test_authentication_success_failure(self, mock_request):
         data = {
             "nonces": 1,
             "uid": 2,
@@ -108,3 +94,8 @@ class TestAuth(unittest.TestCase):
             "failed": "failed",
         })
         self.assertEqual(result, data)
+
+    def test_authentication_failure(self):
+        data = "{'type': 'Not a dictionary, a string!'}"
+        with self.assertRaises(TypeError):
+            self.service.validate(data)

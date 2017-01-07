@@ -25,7 +25,7 @@ def _handle_auth_endpoint(headers=None, data=None):
             key_bytes=TestSession.oneid_key_bytes,
         )
         oneid_key.identity = 'oneID'
-        jws = jwts.extend_jws_signatures(data, oneid_key)
+        jws = jwts.extend_jws_signatures(data, [oneid_key])
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
     except InvalidSignature:
@@ -195,7 +195,7 @@ class TestDeviceSession(unittest.TestCase):
         sess = session.DeviceSession(self.id_credentials)
         jws = sess.prepare_message(a=1)
 
-        claims = jwts.verify_jws(jws, self.id_credentials.keypair)
+        claims = jwts.verify_jws(jws, [self.id_credentials.keypair])
 
         self.assertIsInstance(claims, dict)
         self.assertIn("a", claims)

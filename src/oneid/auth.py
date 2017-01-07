@@ -44,7 +44,7 @@ class OneIDAuthenticationService:
         :param api_id: Your OneID API ID
         :param api_key: Your OneID API key
         """
-        if not api_id or not api_key:
+        if not (api_id and api_key):
             raise ValueError('api_id and api_key are required')
 
         self.api_id = api_id
@@ -59,10 +59,10 @@ class OneIDAuthenticationService:
         :return: if successful, `oneid_payload`, updated with the response from oneID.
             Otherwise, the error response from oneID.
         """
-        if isinstance(oneid_payload, dict):
-            oneid_payload = copy.deepcopy(oneid_payload)
-        else:
-            oneid_payload = json.loads(oneid_payload)
+        if not isinstance(oneid_payload, dict):
+            raise TypeError("oneid_payload must be a dictionary")
+
+        oneid_payload = copy.deepcopy(oneid_payload)
 
         data_to_validate = {
             "nonces": oneid_payload["nonces"],

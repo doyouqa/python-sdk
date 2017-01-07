@@ -5,8 +5,6 @@ import contextlib
 import boto3
 import botocore
 
-from .. import utils
-
 
 def join_paths(*paths):
     return '/'.join(paths)
@@ -33,16 +31,15 @@ def prepare_file_directory(filename):
 
 
 @contextlib.contextmanager
-def read_file(filename, binary):
+def read_file(filename):
     obj = _s3().Object(*_parse_path(filename))
-    # data = obj.get(**settings.AWS_S3_OBJECT_PARAMS)['Body'].read()
     data = obj.get()['Body'].read()
-    yield data if binary else utils.to_string(data)
+    yield data
 
 
-def write_file(filename, data, binary):
+def write_file(filename, data):
     obj = _s3().Object(*_parse_path(filename))
-    data = data if binary else utils.to_string(data)
+    data = data
     obj.put(Body=data, ServerSideEncryption='AES256')  # , **settings.AWS_S3_OBJECT_PARAMS)
 
 

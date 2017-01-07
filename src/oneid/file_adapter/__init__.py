@@ -23,12 +23,12 @@ def prepare_file_directory(filename):
     return _get_handler(filename).prepare_file_directory(filename)
 
 
-def read_file(filename, binary=True):
-    return _get_handler(filename).read_file(filename, binary)
+def read_file(filename):
+    return _get_handler(filename).read_file(filename)
 
 
-def write_file(filename, data, binary=True):
-    return _get_handler(filename).write_file(filename, data, binary)
+def write_file(filename, data):
+    return _get_handler(filename).write_file(filename, data)
 
 
 def _get_handler(path):

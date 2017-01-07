@@ -87,11 +87,8 @@ class TestS3Handler(TestCase):
         s3_handler._s3().Bucket(self.other_bucket_name).delete()
 
     def test_read_file(self):
-        with s3_handler.read_file(self.filename, True) as data:
+        with s3_handler.read_file(self.filename) as data:
             self.assertEqual(data, self.data)
-
-        with s3_handler.read_file(self.filename, False) as data:
-            self.assertEqual(utils.to_bytes(data), self.data)
 
     def _check_write_file(self, binary):
         filename = None
@@ -113,8 +110,18 @@ class TestS3Handler(TestCase):
         obj.delete()
 
     def test_write_file(self):
-        self._check_write_file(True)
-        self._check_write_file(False)
+        with tempfile.NamedTemporaryFile(delete=True) as tf:
+            key = tf.name[1:]
+            filename = 's3://{}/{}'.format(self.bucket_name, key)
+        self.assertIsNotNone(filename)
+        s3_handler.write_file(filename, self.data)
+
+        obj = self.bucket.Object(key)
+        data = obj.get()['Body'].read()
+
+        self.assertEqual(data, self.data)
+
+        obj.delete()
 
     def test_invalid_filenames(self):
         bad_filenames = [

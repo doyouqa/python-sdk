@@ -573,23 +573,28 @@ class TestJWSs(TestCase):
             self._create_and_verify_good_jws({'message': msg})
 
     def test_single_key(self):
-        self._create_and_verify_good_jws({'hello': 7}, self.keypairs[0])
+        self._create_and_verify_good_jws({'hello': 7}, self.keypairs[:1])
 
     def test_missing_keypair_identity(self):
         keypair = service.create_secret_key()
 
         with self.assertRaises(exceptions.InvalidKeyError):
+            jwts.make_jws({"hi": 7}, [keypair])
+
+    def test_keypair_not_list(self):
+        keypair = service.create_secret_key()
+
+        with self.assertRaises(TypeError):
             jwts.make_jws({"hi": 7}, keypair)
 
     def test_incorrect_number_of_headers(self):
         with self.assertRaises(exceptions.KeyHeaderMismatch):
-            jwts.make_jws({'hello': 7}, self.keypairs[
-                0], multiple_sig_headers=[{'z': 0}, {'z': 99}])
+            jwts.make_jws({'hello': 7}, self.keypairs[:1],
+                          multiple_sig_headers=[{'z': 0}, {'z': 99}])
 
     def test_invalid_headers(self):
         with self.assertRaises(exceptions.ReservedHeader):
-            jwts.make_jws({'hello': 7}, self.keypairs[
-                0], multiple_sig_headers=[{'alg': 99}])
+            jwts.make_jws({'hello': 7}, self.keypairs[:1], multiple_sig_headers=[{'alg': 99}])
 
     def test_extend_jws_signatures_from_jwt(self):
         jwt = jwts.make_jwt({"a": 1}, self.keypairs[0])
@@ -602,13 +607,13 @@ class TestJWSs(TestCase):
 
     def test_verify_jws_from_jwt(self):
         jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
-        verified_msg = jwts.verify_jws(jwt, self.keypairs[0])
+        verified_msg = jwts.verify_jws(jwt, self.keypairs[:1])
         self.assertIsInstance(verified_msg, dict)
 
     def test_extend_jws_signatures_from_jwt_single_key(self):
         jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
         jws = jwts.extend_jws_signatures(jwt,
-                                         self.keypairs[1],
+                                         self.keypairs[1:2],
                                          self.keypairs[1].identity)
 
         verified_msg = jwts.verify_jws(jws, self.keypairs[:2])
@@ -628,16 +633,21 @@ class TestJWSs(TestCase):
 
     def test_extend_jws_missing_keypair_identity(self):
         keypair = service.create_secret_key()
-        jws = jwts.make_jws({'a': 1}, self.keypairs[0])
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
 
         with self.assertRaises(exceptions.InvalidKeyError):
-            jwts.extend_jws_signatures(jws, keypair)
+            jwts.extend_jws_signatures(jws, [keypair])
 
     def test_extend_jws_signatures_from_jws(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
         jws = jwts.extend_jws_signatures(jws, self.keypairs[2:])
         verified_msg = jwts.verify_jws(jws, self.keypairs)
         self.assertIsInstance(verified_msg, dict)
+
+    def test_extend_jws_signatures_not_list(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
+        with self.assertRaises(TypeError):
+            jwts.extend_jws_signatures(jws, self.keypairs[0])
 
     def test_extend_jws_signatures_from_jws_multiple_without_sidx(self):
         jws = self.JWS_MISSING_2_SIGNATURE_INDEXES
@@ -655,13 +665,18 @@ class TestJWSs(TestCase):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
         with self.assertRaises(exceptions.KeyHeaderMismatch):
             jwts.extend_jws_signatures(
-                jws, self.keypairs[0], multiple_sig_headers=[{'z': 0}, {'z': 99}])
+                jws, self.keypairs[:1], multiple_sig_headers=[{'z': 0}, {'z': 99}])
 
     def test_remove_jws_signature(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
-        jws = jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
+        jws = jwts.remove_jws_signatures(jws, [self.keypairs[0].identity])
         verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
         self.assertIsInstance(verified_msg, dict)
+
+    def test_remove_jws_signature_not_list(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs)
+        with self.assertRaises(TypeError):
+            jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
 
     def test_none_headers(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:1], multiple_sig_headers=None)
@@ -712,6 +727,12 @@ class TestJWSs(TestCase):
 
         with self.assertRaises(Exception):
             jwts.verify_jws(jwt, self.keypairs[:2])
+
+    def test_jwt_verify_without_list_sigs(self):
+        jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
+
+        with self.assertRaises(TypeError):
+            jwts.verify_jws(jwt, self.keypairs[0])
 
     def test_invalid_message_not_a_jws(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
@@ -899,6 +920,6 @@ class TestKnownJWSs(TestCase):
                 )
             }]
         })
-        self.assertTrue(jwts.verify_jws(jws, self.keypair))
+        self.assertTrue(jwts.verify_jws(jws, [self.keypair]))
 
         # TODO: add more

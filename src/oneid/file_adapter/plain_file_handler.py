@@ -25,15 +25,13 @@ def prepare_file_directory(filename):
 
 
 @contextlib.contextmanager
-def read_file(filename, binary):
-    mode = 'r' + ('b' if binary else '')
-
+def read_file(filename):
+    mode = 'rb'
     with open(filename, mode) as f:
         yield f.read()
 
 
-def write_file(filename, data, binary):
-    mode = 'w' + ('b' if binary else '')
-
+def write_file(filename, data):
+    mode = 'wb'
     with open(filename, mode) as f:
         f.write(data)
