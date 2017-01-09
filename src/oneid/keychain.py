@@ -253,6 +253,7 @@ class Keypair(BaseKeypair):
     def from_secret_der(cls, der_key):
         """
         Read a der_key, convert it a private key
+
         :param path: der formatted key
         :return:
         """
@@ -264,6 +265,7 @@ class Keypair(BaseKeypair):
         """
         Given a DER-format public key, convert it into a token to
         validate signatures
+
         :param public_key: der formatted key
         :return: :class:`~oneid.keychain.Keypair` instance
         """
@@ -277,12 +279,12 @@ class Keypair(BaseKeypair):
     def verify(self, payload, signature):
         """
         Verify that the token signed the data
+
         :type payload: String
         :param payload: message that was signed and needs verified
         :type signature: Base64 URL Safe
         :param signature: Signature that can verify the sender\'s identity and payload
         :return:
-
         """
         raw_sig = utils.base64url_decode(signature)
         sig_r_bin = raw_sig[:len(raw_sig)//2]
@@ -299,6 +301,7 @@ class Keypair(BaseKeypair):
     def sign(self, payload):
         """
         Sign a payload
+
         :param payload: String (usually jwt payload)
         :return: URL safe base64 signature
         """
@@ -319,6 +322,7 @@ class Keypair(BaseKeypair):
     def public_key(self):
         """
         If the private key is defined, generate the public key
+
         :return:
         """
         if self._public_key:
