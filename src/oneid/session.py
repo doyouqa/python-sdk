@@ -39,6 +39,7 @@ class SessionBase(object):
     def _load_config(self, config_file):
         """
         Load configuration from file
+
         :return: dict()
         """
         # Load params from configuration file
@@ -183,6 +184,7 @@ class ServerSession(SessionBase):
     def _create_services(self, params, **kwargs):
         """
         Populate session variables and create methods from
+
         :return: None
         """
         global_kwargs = params.get('GLOBAL', {})
@@ -289,6 +291,7 @@ class AdminSession(SessionBase):
     def _create_services(self, params, **kwargs):
         """
         Populate session variables and create methods from
+
         :return: None
         """
         global_kwargs = params.get('GLOBAL', {})
