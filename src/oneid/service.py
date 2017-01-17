@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives.keywrap import aes_key_wrap, aes_key_unwrap
 
 from .keychain import Keypair
 from . import jwts
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
+
+_BACKEND = default_backend()
 
 
 class ServiceCreator(object):
@@ -181,7 +184,7 @@ def create_secret_key(output=None):
     :param output: Path to save the secret key
     :return: oneid.keychain.Keypair
     """
-    secret_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    secret_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     # Save the secret key bytes to a secure file
@@ -200,46 +203,91 @@ def create_aes_key():
     return os.urandom(32)
 
 
-def encrypt_attr_value(attr_value, aes_key):
+def encrypt_attr_value(attr_value, aes_key, legacy_support=True):
     """
     Convenience method to encrypt attribute properties
 
     :param attr_value: plain text (string or bytes) that you want encrypted
     :param aes_key: symmetric key to encrypt attribute value with
-    :return: Dictionary with base64 encoded cipher text and base 64 encoded iv
+    :return: Dictionary (Flattened JWE) with base64-encoded ciphertext and base64-encoded iv
     """
     iv = os.urandom(16)
-    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=default_backend())
+    cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=_BACKEND)
     encryptor = cipher_alg.encryptor()
     encr_value = encryptor.update(utils.to_bytes(attr_value)) + encryptor.finalize()
-    encr_value_b64 = base64.b64encode(encr_value + encryptor.tag)
-    iv_b64 = base64.b64encode(iv)
-    return {'cipher': 'aes', 'mode': 'gcm', 'ts': 128, 'iv': iv_b64, 'ct': encr_value_b64}
+    ciphertext_b64 = utils.base64url_encode(encr_value)
+    tag_b64 = utils.base64url_encode(encryptor.tag)
+    iv_b64 = base64.b64encode(iv) if legacy_support else utils.base64url_encode(iv)
+    ret = {
+      "header": {
+        "alg": "dir",
+        "enc": "A256GCM"
+      },
+      "iv": iv_b64,
+      "ciphertext": ciphertext_b64,
+      "tag": tag_b64,
+    }
+
+    if legacy_support:
+        ct_b64 = base64.b64encode(encr_value + encryptor.tag)
+        ret.update({
+          "cipher": "aes",
+          "mode": "gcm",
+          "ts": 128,
+          "ct": ct_b64,
+        })
+    return ret
 
 
 def decrypt_attr_value(attr_ct, aes_key):
     """
     Convenience method to decrypt attribute properties
 
-    :param attr_ct: Dictionary with base64 encoded cipher text and base 64 encoded iv
+    :param attr_ct: Dictionary (may be a Flattened JWE) with base64-encoded
+        ciphertext and base64-encoded iv
     :param aes_key: symmetric key to decrypt attribute value with
     :return: plaintext bytes
     """
-    if not isinstance(attr_ct, dict) or \
-            attr_ct.get('cipher', 'aes') != 'aes' or \
-            attr_ct.get('mode', 'gcm') != 'gcm':
-
+    if not isinstance(attr_ct, dict) or (
+        attr_ct.get('cipher', 'aes') != 'aes' or
+        attr_ct.get('mode', 'gcm') != 'gcm' or
+        (
+            'header' in attr_ct and (
+                attr_ct['header'].get('alg', 'dir') != 'dir' or
+                attr_ct['header'].get('env', 'A256GCM') != 'A256GCM'
+            )
+        )
+    ):
         raise ValueError('invalid encrypted attribute')
 
-    iv = base64.b64decode(attr_ct['iv'])
-    tag_ct = base64.b64decode(attr_ct['ct'])
-    ts = attr_ct.get('ts', 64) // 8
-    tag = tag_ct[-ts:]
-    ct = tag_ct[:-ts]
+    iv = None
+    ciphertext = None
+
+    if 'ciphertext' in attr_ct:
+        # JWE included, prefer that
+        ciphertext = utils.base64url_decode(attr_ct.get('ciphertext'))
+        tag = utils.base64url_decode(attr_ct.get('tag'))
+        iv = utils.base64url_decode(attr_ct['iv'])
+    else:
+        # legacy only
+        iv = base64.b64decode(attr_ct['iv'])
+        tag_ct = base64.b64decode(attr_ct['ct'])
+        ts = attr_ct.get('ts', 64) // 8
+        ciphertext = tag_ct[:-ts]
+        tag = tag_ct[-ts:]
+
     cipher_alg = Cipher(
         algorithms.AES(aes_key),
         modes.GCM(iv, tag, min_tag_length=8),
-        backend=default_backend()
+        backend=_BACKEND
     )
     decryptor = cipher_alg.decryptor()
-    return decryptor.update(ct) + decryptor.finalize()
+    return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+def key_wrap(wrapping_key, key_to_wrap):
+    return aes_key_wrap(wrapping_key, key_to_wrap, _BACKEND)
+
+
+def key_unwrap(wrapping_key, wrapped_key):
+    return aes_key_unwrap(wrapping_key, wrapped_key, _BACKEND)

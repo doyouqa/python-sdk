@@ -8,6 +8,7 @@ API
     service
     session
     jwts
+    jwes
     nonces
     auth
     utils
