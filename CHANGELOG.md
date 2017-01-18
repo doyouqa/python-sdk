@@ -1,3 +1,9 @@
+<a name=0.17.1"></a>
+# [0.17.1](https://github.com/OneID/oneID-connect-python/compare/0.17.0...0.17.1) (2017-01-18)
+
+* documentation fixes and updates
+
+
 <a name=0.17.0"></a>
 # [0.17.0](https://github.com/OneID/oneID-connect-python/compare/0.15.0...0.17.0) (2017-01-18)
 
