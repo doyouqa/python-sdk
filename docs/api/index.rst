@@ -11,5 +11,6 @@ API
     jwes
     nonces
     auth
+    jose
     utils
     exceptions

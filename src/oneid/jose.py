@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 
+"""
+Utility functions for dealing with JOSE objects generally.
+
+Mostly used internally, but may be useful for external callers.
+"""
+
 import re
 import json
 import six
@@ -21,37 +27,66 @@ COMPACT_JWS_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
 TOKEN_EXPIRATION_TIME_SEC = nonces.DEFAULT_NONCE_EXPIRY_SECONDS
 
 
-def is_compact_jws(jws):
-    return bool(re.match(COMPACT_JWS_RE, jws))
+def is_compact_jws(msg):
+    """
+    Determine if a given message is a compact JWS (or JWT) or not.
+    Does not necessarily mean that it is valid or authentic.
+
+    :param msg: message to inspect
+    :type msg: str
+    :returns: True if the message is a compact JWS, False otherwise
+    :rtype: bool
+    """
+    return bool(re.match(COMPACT_JWS_RE, msg))
 
 
-def is_jws(jws, json_decoder=json.loads):
+def is_jws(msg, json_decoder=json.loads):
+    """
+    Determine if a given message is a JWS or not (compact or otherwise).
+    Does not necessarily mean that it is valid or authentic.
+
+    :param msg: message to inspect
+    :type msg: str or dict
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
+    :returns: True if the message is a JWS, False otherwise
+    :rtype: bool
+    """
     REQUIRED_FIELDS = ['payload', 'signatures']
 
-    if isinstance(jws, six.string_types):
-        if is_compact_jws(jws):
+    if isinstance(msg, six.string_types):
+        if is_compact_jws(msg):
             return True
-        jws = json_decoder(jws)
+        msg = json_decoder(msg)
 
-    if not isinstance(jws, dict):
+    if not isinstance(msg, dict):
         return False
 
-    if not all([k in jws for k in REQUIRED_FIELDS]):
+    if not all([k in msg for k in REQUIRED_FIELDS]):
         return False
 
     return True
 
 
-def is_jwe(jwe, json_decoder=json.loads):
+def is_jwe(msg, json_decoder=json.loads):
+    """
+    Determine if a given message is a JWE or not.
+    Does not necessarily mean that it is valid or authentic.
+
+    :param msg: message to inspect
+    :type msg: str or dict
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
+    :returns: True if the message is a JWS, False otherwise
+    :rtype: bool
+    """
     REQUIRED_FIELDS = ['iv', 'ciphertext', 'tag', 'recipients']
 
-    if isinstance(jwe, six.string_types):
-        jwe = json_decoder(jwe)
+    if isinstance(msg, six.string_types):
+        msg = json_decoder(msg)
 
-    if not isinstance(jwe, dict):
+    if not isinstance(msg, dict):
         return False
 
-    if not all([k in jwe for k in REQUIRED_FIELDS]):
+    if not all([k in msg for k in REQUIRED_FIELDS]):
         return False
 
     return True
@@ -61,10 +96,10 @@ def get_jwe_shared_header(jwe, json_decoder=json.loads):
     """
     Extract shared (non-encrypted) header values from a JWE
 
-    :param jwe: JWE to extract header values from
+    :param jwe: JWE to extract header field values from
     :type jwe: str or dict
-    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
-    :returns: claims
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
+    :returns: header fields and values
     :rtype: dict
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWE
     """
@@ -85,6 +120,20 @@ def get_jwe_shared_header(jwe, json_decoder=json.loads):
 
 
 def normalize_claims(raw_claims, issuer=None):
+    """
+    Return a set of claims based on the provided claim set that includes reasonable defaults
+    for required claims.
+
+    Note that the claims may be in the form of a valid JWE, in which case the inner values
+    may be inspected.
+
+    :param raw_claims: Initial set of claims, may or may not include required claims
+    :type raw_claims: dict
+    :param issuer: (optional) identifier of the identity creating the message
+    :type str:
+    :returns: filled-out claims
+    :rtype: dict
+    """
     exp = None
     nbf = None
     nonce = None
@@ -131,9 +180,18 @@ def normalize_claims(raw_claims, issuer=None):
     return claims
 
 
-def as_dict(jose_obj, json_decoder=json.loads):
+def as_dict(msg, json_decoder=json.loads):
+    """
+    Unpack a message (if necessary) into its dictionary form.
 
-    if not isinstance(jose_obj, dict):
-        jose_obj = json_decoder(utils.to_string(jose_obj))
+    :param msg: message to convert
+    :type msg: str or dict
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
+    :returns: the message in dictionary form
+    :rtype: dict
+    """
 
-    return jose_obj
+    if not isinstance(msg, dict):
+        msg = json_decoder(utils.to_string(msg))
+
+    return msg
