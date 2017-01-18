@@ -309,7 +309,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     :param default_kid: Value to use for looking up keypair if no `kid` found
                     in a given signature header, as may happen when extending a JWT
     :type default_kid: str
-    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: claims
     :rtype: dict
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
@@ -358,6 +358,7 @@ def get_jws_headers(jws, json_decoder=json.loads):
 
     :param jws: JWS to get headers from
     :type jws: str or bytes
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: headers
     :rtype: list
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
