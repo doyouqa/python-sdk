@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 
 import tempfile
+import base64
 import logging
 
 import unittest
@@ -155,17 +156,48 @@ class TestEncryptDecryptAttributes(unittest.TestCase):
         self.key = service.create_aes_key()
         self.data = 'hoôray!🎉'
 
-    def test_encrypt(self):
-        enc = service.encrypt_attr_value(self.data, self.key)
+    def test_encrypt_with_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
         self.assertIn("cipher", enc)
         self.assertIn("mode", enc)
         self.assertIn("ts", enc)
+        self.assertIn("header", enc)
+        self.assertIn("ciphertext", enc)
+        self.assertIn("tag", enc)
         self.assertEqual(enc.get("cipher"), "aes")
         self.assertEqual(enc.get("mode"), "gcm")
         self.assertEqual(enc.get("ts"), 128)
 
-    def test_decrypt(self):
-        enc = service.encrypt_attr_value(self.data, self.key)
+    def test_encrypt_without_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        self.assertNotIn("cipher", enc)
+        self.assertNotIn("mode", enc)
+        self.assertNotIn("ts", enc)
+        self.assertIn("header", enc)
+        self.assertIn("ciphertext", enc)
+        self.assertIn("tag", enc)
+
+    def test_decrypt_with_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_without_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_without_legacy_follow_standard_encoding(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        enc['iv'] = base64.b64encode(utils.base64url_decode(enc['iv']))
+        decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
+        self.assertEqual(decrypted, self.data)
+
+    def test_decrypt_only_legacy(self):
+        enc = service.encrypt_attr_value(self.data, self.key, True)
+        del enc['header']
+        del enc['ciphertext']
+        del enc['tag']
         decrypted = utils.to_string(service.decrypt_attr_value(enc, self.key))
         self.assertEqual(decrypted, self.data)
 
@@ -196,3 +228,41 @@ class TestEncryptDecryptAttributes(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             service.decrypt_attr_value(enc, self.key)
+
+
+class TestKeyWrapUnwrap(unittest.TestCase):
+    def setUp(self):
+        # arbitrary set of NIST CAVP vectors via pyca/cryptography/.../KW_AD_256.txt
+        self.vectors = [
+            {
+                'count': 21,
+                'key': 'd17c69d99de8ef419806e217d2beb10c439628b0252324534c7029659f5d0d51',
+                'ciphertext': '4c46d20b3ef76d466ff16049227afbfa012ab04545164310',
+                'plaintext': '819e142888ea323a3f127ddc972aa23f',
+            },
+            {
+                'count': 22,
+                'key': '71e9abf9daed93b6a1565ce1e0aeecf5945bc9b65c330f853acd91b9c760ed5a',
+                'ciphertext': '8e3dc40df3fe168b29dd687b557edf7539927734ad502a85',
+                'plaintext': '4e7b85ac4548230362e615b6e7e081f9',
+            },
+            {
+                'count': 23,
+                'key': '2dc77923638672c4ae42886e9c11fe84767bc0bcb12dd9e46cb43d35a4d550cb',
+                'ciphertext': '267fe9821e5a7981ff1d698ad7be09a50d629155ee723c73',
+                'plaintext': '685b0c79c092bce176b6eb7d91eff334',
+            },
+        ]
+
+    def tearDown(self):
+        pass
+
+    def test_wrap_unwrap(self):
+        for vector in self.vectors:
+            logger.debug('count=%s', vector['count'])
+            key = bytes(bytearray.fromhex(vector['key']))
+            ciphertext = bytes(bytearray.fromhex(vector['ciphertext']))
+            plaintext = bytes(bytearray.fromhex(vector['plaintext']))
+
+            self.assertEqual(service.key_wrap(key, plaintext), ciphertext)
+            self.assertEqual(service.key_unwrap(key, ciphertext), plaintext)

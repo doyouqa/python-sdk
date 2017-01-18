@@ -2,7 +2,11 @@
 
 from __future__ import unicode_literals
 
+import time
 import logging
+
+from datetime import datetime
+from dateutil import tz
 
 from unittest import TestCase
 
@@ -26,6 +30,23 @@ class TestBytesStringConverters(TestCase):
     def test_to_string(self):
         self.assertEqual(self.str_thing, utils.to_string(self.str_thing))
         self.assertEqual(self.str_thing, utils.to_string(self.bytes_thing))
+
+
+class TestTimestampConverters(TestCase):
+    def setUp(self):
+        self.ts = int(time.time())
+        self.dt = datetime.fromtimestamp(self.ts, tz.tzutc())
+        self.iso_dt = self.dt.isoformat()
+
+    def tearDown(self):
+        pass
+
+    def test_to_timestamp(self):
+        self.assertEqual(utils.to_timestamp(self.dt), self.ts)
+        self.assertEqual(utils.to_timestamp(self.iso_dt), self.ts)
+
+    def test_from_timestamp(self):
+        self.assertEqual(utils.from_timestamp(self.ts), self.dt)
 
 
 class TestBase64URL(TestCase):
