@@ -59,7 +59,7 @@ class Credentials(object):
 class ProjectCredentials(Credentials):
     def __init__(self, project_id, keypair, encryption_key):
         """
-        Adds an ecryption key
+        Adds an encryption key
 
         :param project_id: oneID project UUID
         :param keypair: :py:class:`~oneid.keychain.BaseKeypair`
@@ -93,6 +93,7 @@ class ProjectCredentials(Credentials):
 
         :param cipher_text: Encrypted text or dict (as returned by :py:encrypt:)
         :param iv: Base64 encoded initialization vector
+        :param cipher: [deprecated]
         :param mode: [deprecated]
         :param tag_size: [deprecated]
         :returns: plain text
