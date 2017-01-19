@@ -79,6 +79,7 @@ def _default_nonce_verifier(nonce):
             )
     return True
 
+
 _nonce_verifier = _default_nonce_verifier
 
 
@@ -93,6 +94,7 @@ def _default_nonce_burner(nonce):
         fd.write(nonce + '\n')
 
     return True
+
 
 _nonce_burner = _default_nonce_burner
 

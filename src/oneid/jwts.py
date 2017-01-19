@@ -14,20 +14,16 @@ from __future__ import unicode_literals
 import six
 import collections
 import json
-import re
 import time
 import logging
 
 from datetime import datetime
-from dateutil import parser, tz
+from dateutil import tz
 
-from . import nonces, utils, exceptions
+from . import jose, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
-
-B64_URLSAFE_RE = '[0-9a-zA-Z-_]+'
-COMPACT_JWS_RE = r'^{b64}\.{b64}\.{b64}$'.format(b64=B64_URLSAFE_RE)
 
 RESERVED_HEADERS = [
     'typ',
@@ -48,10 +44,6 @@ TOKEN_NOT_BEFORE_LEEWAY_SEC = (2 * 60)   # two minutes
 TOKEN_EXPIRATION_LEEWAY_SEC = (3)      # three seconds
 
 
-def is_compact(jws):
-    return bool(re.match(COMPACT_JWS_RE, jws))
-
-
 def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
     """
     Convert claims into JWT
@@ -66,7 +58,7 @@ def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
         raise TypeError('dict required for claims, type=' +
                         str(type(raw_claims)))
 
-    claims = _normalize_claims(raw_claims, keypair.identity)
+    claims = jose.normalize_claims(raw_claims, keypair.identity)
     claims_serialized = json_encoder(claims)
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
@@ -102,7 +94,7 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     """
     jwt = utils.to_string(jwt)
 
-    if not is_compact(jwt):
+    if not jose.is_compact_jws(jwt):
         logger.debug('Given JWT doesnt match pattern: %s', jwt)
         raise exceptions.InvalidFormatError
 
@@ -155,7 +147,7 @@ def make_jws(raw_claims, ordered_keypairs, multiple_sig_headers=None, json_encod
     multiple_sig_headers = _validated_headers(ordered_keypairs, multiple_sig_headers)
     multiple_sig_headers = _add_signature_indexes(multiple_sig_headers)
 
-    claims = _normalize_claims(raw_claims)
+    claims = jose.normalize_claims(raw_claims)
     claims_serialized = json_encoder(claims)
     claims_b64 = utils.to_string(utils.base64url_encode(claims_serialized))
 
@@ -264,7 +256,7 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
 
     jws = utils.to_string(jws)
 
-    if is_compact(jws):
+    if jose.is_compact_jws(jws):
         header_b64, claims_b64, _ = jws.split('.')
         header = json_decoder(utils.to_string(
             utils.base64url_decode(header_b64)))
@@ -317,7 +309,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     :param default_kid: Value to use for looking up keypair if no `kid` found
                     in a given signature header, as may happen when extending a JWT
     :type default_kid: str
-    :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: claims
     :rtype: dict
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
@@ -333,7 +325,7 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
 
     jws = utils.to_string(jws)
 
-    if is_compact(jws):
+    if jose.is_compact_jws(jws):
 
         if verify_all and keypairs and len(keypairs) != 1:
             raise exceptions.InvalidSignatureError(
@@ -366,6 +358,7 @@ def get_jws_headers(jws, json_decoder=json.loads):
 
     :param jws: JWS to get headers from
     :type jws: str or bytes
+    :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: headers
     :rtype: list
     :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
@@ -381,7 +374,7 @@ def get_jws_headers(jws, json_decoder=json.loads):
 
 # def _extract_claim(jws, claim):
 #
-#     if is_compact(jws):
+#     if jose.is_compact_jws(jws):
 #         claims_b64 = jws.split('.')[1]
 #     else:
 #         jws_dict = json.loads(jws)
@@ -439,48 +432,11 @@ def _add_signature_indexes(multiple_sig_headers, offset=0):
             for idx, headers in enumerate(multiple_sig_headers)]
 
 
-def _normalize_claims(raw_claims, issuer=None):
-    exp = None
-    nonce = None
-
-    if 'exp' in raw_claims and 'jti' not in raw_claims:
-        # use message expiration for nonce expiration
-        exp = raw_claims.get('exp')
-        exp_dt = datetime.fromtimestamp(exp, tz.tzutc())
-        nonce = nonces.make_nonce(exp_dt)
-    elif 'jti' in raw_claims and (raw_claims['jti'][:3] == '002') and 'exp' not in raw_claims:
-        # use >v1 nonce expiration for message expiration
-        try:
-            nonce = raw_claims.get('jti')
-            nonce_dt = parser.parse(nonce[3:-6])
-            exp = (nonce_dt - datetime(1970, 1, 1,
-                                       tzinfo=tz.tzutc())).total_seconds()
-        except:
-            logger.warning(
-                'unable to parse jti for nonce exp, using default, jti=%s', nonce)
-
-    now = int(time.time())
-    default_exp_ts = (now + TOKEN_EXPIRATION_TIME_SEC)
-    default_exp_dt = datetime.fromtimestamp(default_exp_ts, tz.tzutc())
-
-    claims = {
-        'jti': nonce or nonces.make_nonce(default_exp_dt),
-        'nbf': now,
-        'exp': exp or default_exp_ts,
-    }
-    if issuer:
-        claims['iss'] = issuer
-
-    claims.update(raw_claims)
-
-    return claims
-
-
 def _jws_as_dict(jws, kid, json_decoder):
 
     jws = utils.to_string(jws)
 
-    if not is_compact(jws):
+    if not jose.is_compact_jws(jws):
         return json_decoder(jws)
 
     header_b64, payload, signature = jws.split('.')

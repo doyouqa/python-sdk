@@ -6,7 +6,7 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, jwts, exceptions
+from oneid import session, service, keychain, jose, jwts, jwes, nonces, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ def _handle_auth_endpoint(headers=None, data=None):
             key_bytes=TestSession.oneid_key_bytes,
         )
         oneid_key.identity = 'oneID'
+        jwts.verify_jws(data)
         jws = jwts.extend_jws_signatures(data, oneid_key)
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
@@ -128,9 +129,22 @@ class TestBaseSession(unittest.TestCase):
                           "GET",
                           "https://myservice/unauthorized")
 
+    def test_peer_credentials(self):
+        base = session.SessionBase()
+        self.assertIsNone(base.peer_credentials)
+
+        cred = keychain.Credentials('me', keychain.BaseKeypair())
+
+        base = session.SessionBase(peer_credentials=cred)
+        self.assertIsInstance(base.peer_credentials, list)
+
+        base = session.SessionBase(peer_credentials=[cred])
+        self.assertIsInstance(base.peer_credentials, list)
+
 
 class TestDeviceSession(unittest.TestCase):
     def setUp(self):
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         self.mock_id_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.id_key_bytes
         )
@@ -159,6 +173,15 @@ class TestDeviceSession(unittest.TestCase):
         self.oneid_credentials = keychain.Credentials(
             self.mock_oneid_keypair.identity,
             self.mock_oneid_keypair
+        )
+
+        mock_peer_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.alt_key_bytes
+        )
+        mock_peer_keypair.identity = 'peer'
+
+        self.peer_credentials = keychain.Credentials(
+            mock_peer_keypair.identity, mock_peer_keypair
         )
 
         self.mock_resetA_keypair = keychain.Keypair.from_secret_pem(
@@ -191,11 +214,40 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_resetC_keypair
         )
 
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
     def test_prepare_message(self):
         sess = session.DeviceSession(self.id_credentials)
         jws = sess.prepare_message(a=1)
 
         claims = jwts.verify_jws(jws, self.id_credentials.keypair)
+
+        self.assertIsInstance(claims, dict)
+        self.assertIn("a", claims)
+        self.assertEqual(claims.get("a"), 1)
+
+    def test_prepare_message_encrypted_session(self):
+        sess = session.DeviceSession(self.id_credentials, peer_credentials=self.peer_credentials)
+        jws = sess.prepare_message(a=1)
+
+        jwe = jwts.verify_jws(jws, self.id_credentials.keypair)
+        self.assertTrue(jose.is_jwe(jwe))
+
+        claims = jwes.decrypt_jwe(jwe, self.peer_credentials.keypair)
+
+        self.assertIsInstance(claims, dict)
+        self.assertIn("a", claims)
+        self.assertEqual(claims.get("a"), 1)
+
+    def test_prepare_message_encrypted_to_other(self):
+        sess = session.DeviceSession(self.id_credentials)
+        jws = sess.prepare_message(a=1, other_recipients=[self.peer_credentials])
+
+        jwe = jwts.verify_jws(jws, self.id_credentials.keypair)
+        self.assertTrue(jose.is_jwe(jwe))
+
+        claims = jwes.decrypt_jwe(jwe, self.peer_credentials.keypair)
 
         self.assertIsInstance(claims, dict)
         self.assertIn("a", claims)
@@ -259,9 +311,27 @@ class TestDeviceSession(unittest.TestCase):
         self.assertIn("d", claims)
         self.assertEqual(claims.get("d"), 4)
 
+    def test_verify_encrypted_session_message(self):
+        jwe = jwes.make_jwe(
+            {'b': 2},
+            self.proj_credentials.keypair,
+            self.id_credentials.keypair,
+            jsonify=False,
+        )
+        jws = jwts.make_jws(jwe, [self.mock_proj_keypair, self.mock_oneid_keypair])
+
+        sess = session.DeviceSession(
+            self.id_credentials, self.proj_credentials, self.oneid_credentials
+        )
+        claims = sess.verify_message(jws)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("b", claims)
+        self.assertEqual(claims.get("b"), 2)
+
 
 class TestServerSession(unittest.TestCase):
     def setUp(self):
+        nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
         mock_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.id_key_bytes
         )
@@ -349,6 +419,9 @@ class TestServerSession(unittest.TestCase):
         }
         self.fake_config['authenticate']['edge_device'] = self.fake_config['authenticate']['server']
 
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
     def test_init_from_config(self):
         sess = session.ServerSession(config={})
         with self.assertRaises(AttributeError):
@@ -391,19 +464,22 @@ class TestServerSession(unittest.TestCase):
 
         verified = jwts.verify_jws(authenticated_data, keypairs)
         self.assertIsInstance(verified, dict)
-        self.assertIn('message', verified)
+        self.assertIn('a', verified)
+        self.assertIn('b', verified)
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
-    def test_prepare_message_by_param(self, mock_request):
+    def test_prepare_message_encrypted_session(self, mock_request):
+        peer_credentials = self.alt_credentials
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
             oneid_credentials=self.oneid_credentials,
             project_credentials=self.project_credentials,
+            peer_credentials=peer_credentials,
             config=self.fake_config,
         )
 
-        authenticated_data = sess.prepare_message(
-            raw_message='hello',
+        jws = sess.prepare_message(
+            a=1, b=2,
         )
 
         keypairs = [
@@ -411,9 +487,13 @@ class TestServerSession(unittest.TestCase):
             self.project_credentials.keypair,
         ]
 
-        verified = jwts.verify_jws(authenticated_data, keypairs)
-        self.assertIsInstance(verified, dict)
-        self.assertIn('message', verified)
+        jwe = jwts.verify_jws(jws, keypairs)
+
+        claims = jwes.decrypt_jwe(jwe, peer_credentials.keypair)
+
+        self.assertIsInstance(claims, dict)
+        self.assertIn('a', claims)
+        self.assertIn('b', claims)
 
     @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
     def test_prepare_message_failed_cosign(self, mock_request):
@@ -531,6 +611,26 @@ class TestServerSession(unittest.TestCase):
         claims = sess.verify_message(
             message, self.id_credentials, get_oneid_cosignature=False
         )
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_jwe(self, mock_request):
+        jwe = jwes.make_jwe(
+            {'c': 3},
+            self.id_credentials.keypair,
+            self.alt_credentials.keypair,
+            jsonify=False,
+        )
+        message = jwts.make_jws(jwe, [self.id_credentials.keypair])
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(message, self.id_credentials)
         self.assertIsInstance(claims, dict)
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)

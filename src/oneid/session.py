@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import os
-import json
 import yaml
 import collections
 import logging
@@ -9,7 +8,7 @@ import logging
 from requests import request
 from codecs import open
 
-from . import service, jwts, exceptions
+from . import service, jose, jwts, jwes, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -21,20 +20,27 @@ class SessionBase(object):
     :ivar identity_credentials: oneID identity :class:`~oneid.keychain.Credentials`
     :ivar project_credentials: unique project credentials :class:`~oneid.keychain.Credentials`
     :ivar oneid_credentials: oneID project credentials :class:`~oneid.keychain.Credentials`
+    :ivar oneid_credentials: peer credentials :class:`~oneid.keychain.Credentials`
+    :ivar config: Dictionary or configuration keyword arguments
     """
     def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, config=None):
+                 oneid_credentials=None, peer_credentials=None, config=None):
         """
 
         :param identity_credentials: :py:class:`~oneid.keychain.Credentials`
         :param project_credentials: :py:class:`~oneid.keychain.ProjectCredentials`
         :param oneid_credentials: :py:class:`~oneid.keychain.Credentials`
+        :param peer_credentials: list of :py:class:`~oneid.keychain.Credentials`
+            If provided, session will be encrypted to recipients
         :param config: Dictionary or configuration keyword arguments
         :return:
         """
         self.identity_credentials = identity_credentials
         self.project_credentials = project_credentials
         self.oneid_credentials = oneid_credentials
+        self.peer_credentials = peer_credentials
+        if peer_credentials and not isinstance(peer_credentials, collections.Iterable):
+            self.peer_credentials = [peer_credentials]
 
     def _load_config(self, config_file):
         """
@@ -63,6 +69,17 @@ class SessionBase(object):
                                                              self,
                                                              **kwargs)
                         )
+
+    def _get_recipient_keypairs(self, encrypt_to_peers, other_recipients):
+        recipients = []
+
+        if encrypt_to_peers and self.peer_credentials:
+            recipients += self.peer_credentials
+
+        if other_recipients:
+            recipients += other_recipients
+
+        return [c.keypair for c in recipients]
 
     def make_http_request(self, http_method, url, headers=None, body=None):
         """
@@ -119,14 +136,15 @@ class SessionBase(object):
 
 class DeviceSession(SessionBase):
     def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, config=None):
+                 oneid_credentials=None, peer_credentials=None, config=None):
         super(DeviceSession, self).__init__(identity_credentials,
                                             project_credentials,
-                                            oneid_credentials, config)
+                                            oneid_credentials,
+                                            peer_credentials, config)
 
     def verify_message(self, message, rekey_credentials=None):
         """
-        Verify a message received from the server
+        Verify a message received from the Project
 
         :param message: JSON formatted JWS with at least two signatures
         :param rekey_credentials: List of :class:`~oneid.keychain.Credential`
@@ -145,17 +163,35 @@ class DeviceSession(SessionBase):
         else:
             keypairs = standard_keypairs
 
-        return jwts.verify_jws(message, keypairs)
+        ret = jwts.verify_jws(message, keypairs)
 
-    def prepare_message(self, *args, **kwargs):
+        if jose.is_jwe(ret):
+            ret = jwes.decrypt_jwe(ret, self.identity_credentials.keypair)
+
+        return ret
+
+    def prepare_message(self, encrypt_to_peers=True, other_recipients=None, *args, **kwargs):
         """
         Prepare a message before sending
 
-        :return: Signed JWT
+        :param encrypt_to_peers: If True (default), and peer_credentials available,
+            encrypt the message to them
+        :type encrypt_to_peers: bool
+        :param other_recipients: Additional recipients to encrypt to
+        :type other_recipients: list of :class:`~oneid.keychain.Credential`
+        :return: Signed JWS
         """
-        kwargs['iss'] = self.identity_credentials.id
+        claims = kwargs
+        claims['iss'] = self.identity_credentials.id
 
-        return jwts.make_jwt(kwargs, self.identity_credentials.keypair)
+        recipient_keypairs = self._get_recipient_keypairs(encrypt_to_peers, other_recipients)
+
+        if recipient_keypairs:
+            claims = jwes.make_jwe(
+                claims, self.identity_credentials.keypair, recipient_keypairs, jsonify=False
+            )
+
+        return jwts.make_jws(claims, self.identity_credentials.keypair)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
@@ -166,10 +202,11 @@ class ServerSession(SessionBase):
     Enable Server to request two-factor Authentication from oneID
     """
     def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, config=None):
+                 oneid_credentials=None, peer_credentials=None, config=None):
         super(ServerSession, self).__init__(identity_credentials,
                                             project_credentials,
-                                            oneid_credentials, config)
+                                            oneid_credentials,
+                                            peer_credentials, config)
 
         if isinstance(config, dict):
             params = config
@@ -193,13 +230,19 @@ class ServerSession(SessionBase):
 
         super(ServerSession, self)._create_services(params, **global_kwargs)
 
-    def prepare_message(self, rekey_credentials=None, **kwargs):
+    def prepare_message(self, rekey_credentials=None, encrypt_to_peers=True,
+                        other_recipients=None, **kwargs):
         """
         Build message that has two-factor signatures
 
         :param rekey_credentials: (optional) rekey credentials
         :type rekey_credentials: list
-        :return: Content to be sent to devices
+        :param encrypt_to_peers: If True (default), and peer_credentials available,
+            encrypt the message to them
+        :type encrypt_to_peers: bool
+        :param other_recipients: Additional recipients to encrypt to
+        :type other_recipients: list of :class:`~oneid.keychain.Credential`
+        :return: Signed JWS to be sent to devices
         """
         if self.project_credentials is None:
             raise AttributeError
@@ -211,12 +254,22 @@ class ServerSession(SessionBase):
         if rekey_credentials:
             keypairs += [credentials.keypair for credentials in rekey_credentials]
 
-        message = kwargs.get('raw_message', json.dumps(kwargs))
+        claims = kwargs
+        claims['iss'] = self.identity_credentials.id
+
+        recipient_keypairs = self._get_recipient_keypairs(encrypt_to_peers, other_recipients)
+
+        if recipient_keypairs:
+            claims = jwes.make_jwe(
+                claims, self.identity_credentials.keypair, recipient_keypairs, jsonify=False
+            )
+
+        jws = jwts.make_jws(claims, self.identity_credentials.keypair)
 
         oneid_response = self.authenticate.server(
             project_id=self.project_credentials.keypair.identity,
             identity=self.identity_credentials.keypair.identity,
-            message=message
+            body=jws
         )
 
         if not oneid_response:
@@ -263,7 +316,12 @@ class ServerSession(SessionBase):
                 logger.debug('oneID refused to co-sign device message')
                 raise exceptions.InvalidAuthentication
 
-        return jwts.verify_jws(message, keypairs)
+        ret = jwts.verify_jws(message, keypairs)
+
+        if jose.is_jwe(ret):
+            ret = jwes.decrypt_jwe(ret, self.identity_credentials.keypair)
+
+        return ret
 
 
 class AdminSession(SessionBase):

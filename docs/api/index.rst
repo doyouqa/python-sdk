@@ -8,7 +8,9 @@ API
     service
     session
     jwts
+    jwes
     nonces
     auth
+    jose
     utils
     exceptions
