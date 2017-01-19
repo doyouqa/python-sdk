@@ -17,7 +17,7 @@ Building the API Docs Locally
 oneid-connect-python uses Sphinx to create documentation. Following these instructions builds the docs locally and outputs them to ``_build/html``. You may not need a python virtual environment if python is installed universally on your machine.
 
 #. Create a virtualenv in oneid-connect-python.
-#. To install requirements, run ``pip install -r ../requirements.txt`` to install all requirements defined in the repo. This should install sphinx, sphinx_rtd_theme, utils, cryptography, boto3 and more.
-#. Set the PYTHONPATH variable to your path. Ex: ``export PYTHONPATH=~/Documents/repos/oneID-connect-python/src``
+#. To install requirements, run ``pip install -r requirements.txt`` to install all requirements defined in the repo. This should install sphinx, sphinx_rtd_theme, utils, cryptography, boto3 and more.
+#. Set the PYTHONPATH variable to your path. Ex: ``export PYTHONPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/src"``
 #. From the source dir, run ``sphinx-build -b html ./docs ./docs/_build`` OR from /docs, run ``make html``
 #. Run ``make clean`` from /docs to remove the build.
