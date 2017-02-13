@@ -66,3 +66,6 @@ target/
 
 # mprof
 mprofile_*
+
+# iPython/Jupyter
+.ipynb_checkpoints
