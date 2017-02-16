@@ -616,7 +616,27 @@ class TestServerSession(unittest.TestCase):
         self.assertEqual(claims.get("c"), 3)
 
     @mock.patch('oneid.session.request', side_effect=mock_request)
-    def test_verify_message_jwe(self, mock_request):
+    def test_verify_message_project_jwe(self, mock_request):
+        jwe = jwes.make_jwe(
+            {'c': 3},
+            self.id_credentials.keypair,
+            self.project_credentials.keypair,
+            jsonify=False,
+        )
+        message = jwts.make_jws(jwe, [self.id_credentials.keypair])
+        sess = session.ServerSession(
+            identity_credentials=self.alt_credentials,
+            oneid_credentials=self.oneid_credentials,
+            project_credentials=self.project_credentials,
+            config=self.fake_config,
+        )
+        claims = sess.verify_message(message, self.id_credentials)
+        self.assertIsInstance(claims, dict)
+        self.assertIn("c", claims)
+        self.assertEqual(claims.get("c"), 3)
+
+    @mock.patch('oneid.session.request', side_effect=mock_request)
+    def test_verify_message_project_server_jwe(self, mock_request):
         jwe = jwes.make_jwe(
             {'c': 3},
             self.id_credentials.keypair,
