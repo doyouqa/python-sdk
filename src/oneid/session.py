@@ -318,7 +318,12 @@ class ServerSession(SessionBase):
         ret = jwts.verify_jws(message, keypairs)
 
         if jose.is_jwe(ret):
-            ret = jwes.decrypt_jwe(ret, self.identity_credentials.keypair)
+            try:
+                # the message is most likely intended for the Project
+                ret = jwes.decrypt_jwe(ret, self.project_credentials.keypair)
+            except exceptions.InvalidRecipient:
+                # but in case it is intended for the Project Server itself
+                ret = jwes.decrypt_jwe(ret, self.identity_credentials.keypair)
 
         return ret
 

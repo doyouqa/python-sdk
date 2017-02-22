@@ -1,3 +1,9 @@
+<a name=0.17.2"></a>
+# [0.17.2](https://github.com/OneID/oneID-connect-python/compare/0.17.1...0.17.2) (2017-02-21)
+
+* **session:** server gets msgs encrypted to proj ([131c369](https://github.com/OneID/oneID-connect-python/commit/131c369))
+* documentation fixes and updates
+
 <a name=0.17.1"></a>
 # [0.17.1](https://github.com/OneID/oneID-connect-python/compare/0.17.0...0.17.1) (2017-01-18)
 
