@@ -1,3 +1,10 @@
+---
+title: Hello World
+parent: index
+order: 1
+object-id: python-hello-world
+---
+
 Hello World
 ===========
 

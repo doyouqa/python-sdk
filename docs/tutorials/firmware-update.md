@@ -1,3 +1,10 @@
+---
+title: 2FA Firmware Update
+parent: index
+order: 2
+object-id: python-2fa
+---
+
 Sending Two-Factor Authenticated Firmware update to IoT Device
 ==============================================================
 
@@ -8,7 +15,7 @@ entire fleet of devices.
 For this example, we’re going to use oneID’s two-factor authentication
 service. oneID’s two-factor authentication service enables you to manage
 all your servers and IoT devices. If a server or IoT device has been
-compromised or taken out of commission, you can easily revoke it’s
+compromised or taken out of commission, you can easily revoke its
 signing permissions.
 
 Before we begin, you will need `oneID-cli` and a [oneID developer
