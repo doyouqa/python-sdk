@@ -157,7 +157,7 @@ class DeviceSession(SessionBase):
         if rekey_credentials:
             keypairs = [credentials.keypair for credentials in rekey_credentials]
 
-            kids = jwts.get_jws_key_ids(message)
+            kids = [sig_params['kid'] for sig_params in jwts.get_jws_key_ids(message)]
             keypairs += [keypair for keypair in standard_keypairs if keypair.identity in kids]
         else:
             keypairs = standard_keypairs
