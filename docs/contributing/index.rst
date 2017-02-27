@@ -28,7 +28,16 @@ You are now ready to run tests and build documentation.
 Running Tests
 -------------
 ``oneID-connect`` unit tests are found in the ``tests/`` directory and are designed to use python's
-``unittest`` library. ``nose2`` will discover the tests automatically.
+``unittest`` library.
+
+Some tests will depend on submodules, so an additional step may be required before running tests:
+
+.. code-block:: console
+
+  $ git submodule update
+
+
+Once everything in in place, ``nose2`` will discover the tests automatically.
 
 .. code-block:: console
 

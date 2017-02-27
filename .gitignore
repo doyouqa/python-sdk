@@ -4,6 +4,9 @@ __pycache__/
 
 *.DS_Store
 
+# node stuff
+node_modules
+
 # C extensions
 *.so
 

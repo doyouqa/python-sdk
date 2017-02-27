@@ -1,8 +1,14 @@
+checkout:
+  post:
+    - git submodule sync
+    - git submodule update --init
+
 dependencies:
   override:
     - pyenv local 2.7.5 3.4.0 3.5.0
   pre:
     - pip install -r dev_requirements.txt
+    - npm install ./sdk_validation_data
 
 test:
   pre:

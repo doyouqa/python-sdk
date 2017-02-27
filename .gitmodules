@@ -1,0 +1,4 @@
+[submodule "sdk_validation"]
+	path = sdk_validation_data
+	url = git@github.com:Neustar-TDI/sdk-validation.git
+	branch = feature/cd/oneid-355/initial-implementation
