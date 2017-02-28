@@ -39,7 +39,7 @@ def aes_encrypt(plaintext, aes_key, legacy_support=True):
     :param aes_key: symmetric key to encrypt attribute value with
     :return: Dictionary (Flattened JWE) with base64-encoded ciphertext and base64-encoded iv
     """
-    iv = os.urandom(16)
+    iv = os.urandom(12)
     cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=_BACKEND)
     encryptor = cipher_alg.encryptor()
     encr_value = encryptor.update(utils.to_bytes(plaintext)) + encryptor.finalize()
