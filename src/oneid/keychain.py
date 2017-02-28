@@ -75,15 +75,11 @@ class ProjectCredentials(Credentials):
         """
         return symcrypt.aes_encrypt(plain_text, self._encryption_key)
 
-    def decrypt(self, cipher_text, iv=None, cipher='aes', mode='gcm', tag_size=128):
+    def decrypt(self, cipher_text):
         """
         Decrypt cipher text that was encrypted with the project encryption key
 
-        :param cipher_text: Encrypted text or dict (as returned by :py:encrypt:)
-        :param iv: Base64 encoded initialization vector
-        :param cipher: [deprecated]
-        :param mode: [deprecated]
-        :param tag_size: [deprecated]
+        :param cipher_text: Encrypted dict as returned by :py:encrypt:
         :returns: plain text
         :return_type: bytes
         """
