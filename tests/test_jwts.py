@@ -649,7 +649,13 @@ class TestJWSs(TestCase):
     def test_extend_jws_signatures_from_jws_without_1_sidx(self):
         jws = self.JWS_MISSING_1_SIGNATURE_INDEXES
         jws = jwts.extend_jws_signatures(jws, self.keypairs[2:])
-        self.assertIsInstance(jwts.get_jws_key_ids(jws, ordered=True), list)
+        kids = jwts.get_jws_key_ids(jws, ordered=True)
+        self.assertIsInstance(kids, list)
+
+        for params in kids:
+            self.assertIn('kid', params)
+            self.assertIn('kids', params)
+            self.assertIn('sidxs', params)
 
     def test_extend_incorrect_number_of_headers(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
@@ -677,13 +683,13 @@ class TestJWSs(TestCase):
 
     def test_get_jws_key_ids(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
-        kids = [keypair.identity for keypair in self.keypairs]
+        kids = [{'kid': keypair.identity, 'kids': [], 'sidxs': []} for keypair in self.keypairs]
         msg_ids = jwts.get_jws_key_ids(jws)
         self.assertEqual(msg_ids, kids)
 
     def test_get_ordered_jws_key_ids(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
-        kids = [keypair.identity for keypair in self.keypairs]
+        kids = [{'kid': keypair.identity, 'kids': [], 'sidxs': []} for keypair in self.keypairs]
         msg_ids = jwts.get_jws_key_ids(jws, ordered=True)
         self.assertEqual(msg_ids, kids)
 
@@ -703,7 +709,7 @@ class TestJWSs(TestCase):
 
     def test_get_jws_key_ids_from_jwt(self):
         jwt = jwts.make_jwt({'a': 1}, self.keypairs[0])
-        kids = [self.keypairs[0].identity]
+        kids = [{'kid': self.keypairs[0].identity, 'kids': [], 'sidxs': []}]
         msg_ids = jwts.get_jws_key_ids(jwt)
         self.assertEqual(msg_ids, kids)
 
