@@ -11,7 +11,7 @@ __summary__ = ("oneID-connect is an identity & authentication "
 
 __uri__ = "https://github.com/OneID/oneID-connect-python"
 
-__version__ = "0.18.0"
+__version__ = "0.18.1-dev1"
 
 __author__ = "oneID Inc."
 __email__ = "support@oneID.com"
