@@ -5,6 +5,7 @@ import os
 import tempfile
 import uuid
 import base64
+import binascii
 import logging
 import unittest
 
@@ -94,6 +95,13 @@ class TestProjectCredentials(TestCredentials):
                 {
                     'cipher': 'aes', 'mode': 'gcm',
                     'ts': 129, 'iv': 'aa', 'ct': 'aa'
+                }
+            )
+        with self.assertRaises((binascii.Error, TypeError)):
+            self.project_credentials.decrypt(
+                {
+                    'cipher': 'aes', 'mode': 'gcm',
+                    'ts': 128, 'iv': 'aa', 'ct': 'aa'
                 }
             )
 

@@ -4,7 +4,7 @@
 Provides useful functions for interacting with the oneID API, including creation of
 keys, etc.
 """
-from __future__ import unicode_literals
+from __future__ import unicode_literals, division
 
 import os
 import base64
@@ -96,14 +96,28 @@ def aes_decrypt(attr_ct, aes_key):
         # JWE included, prefer that
         ciphertext = utils.base64url_decode(attr_ct.get('ciphertext'))
         tag = utils.base64url_decode(attr_ct.get('tag'))
-        iv = utils.base64url_decode(attr_ct['iv'])
+
+        if len(tag) != 16:  # 128 // 8
+            raise ValueError('invalid tag size: {}'.format(len(tag)))
+
+        if 'cipher' in attr_ct:
+            # hybrid mode, iv is in legacy format
+            iv = base64.b64decode(attr_ct['iv'])
+        else:
+            iv = utils.base64url_decode(attr_ct['iv'])
     else:
         # legacy only
+        ts = attr_ct.get('ts', 128)
+
+        if ts != 128:
+            raise ValueError('invalid tag size: {}'.format(ts))
+
         iv = base64.b64decode(attr_ct['iv'])
         tag_ct = base64.b64decode(attr_ct['ct'])
-        ts = attr_ct.get('ts', 64) // 8
-        ciphertext = tag_ct[:-ts]
-        tag = tag_ct[-ts:]
+
+        sp = ts // 8
+        ciphertext = tag_ct[:-sp]
+        tag = tag_ct[-sp:]
 
     cipher_alg = Cipher(
         algorithms.AES(aes_key),

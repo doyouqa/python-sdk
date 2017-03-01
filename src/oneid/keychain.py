@@ -4,6 +4,8 @@ A Keypair is used to sign and verify signatures
 
 Keys should be kept in a secure storage enclave.
 """
+from __future__ import division
+
 import struct
 import logging
 
