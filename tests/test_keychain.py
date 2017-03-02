@@ -5,6 +5,7 @@ import os
 import tempfile
 import uuid
 import base64
+import binascii
 import logging
 import unittest
 
@@ -55,7 +56,7 @@ class TestProjectCredentials(TestCredentials):
         self.assertEqual(enc.get("ts"), 128)
 
         cleartext = utils.to_string(
-            self.project_credentials.decrypt(enc['ct'], enc['iv'])
+            self.project_credentials.decrypt(enc)
         )
         self.assertEqual(cleartext, self.data)
 
@@ -66,15 +67,9 @@ class TestProjectCredentials(TestCredentials):
             logger.debug('enc/dec %s', text)
             enc = self.project_credentials.encrypt(text)
             cleartext = utils.to_string(
-                self.project_credentials.decrypt(enc['ct'], enc['iv'])
+                self.project_credentials.decrypt(enc)
             )
             self.assertEqual(cleartext, utils.to_string(text))
-
-    def test_decrypt_dict(self):
-        enc = self.project_credentials.encrypt(self.data)
-
-        cleartext = utils.to_string(self.project_credentials.decrypt(enc))
-        self.assertEqual(cleartext, self.data)
 
     def test_decrypt_dict_invalid(self):
         with self.assertRaises(ValueError):
@@ -96,13 +91,13 @@ class TestProjectCredentials(TestCredentials):
                     'ts': 129, 'iv': 'aa', 'ct': 'aa'
                 }
             )
-
-    def test_decrypt_no_iv(self):
-        with self.assertRaises(ValueError):
-            self.project_credentials.decrypt("aa")
-
-        with self.assertRaises(ValueError):
-            self.project_credentials.decrypt("aa", None)
+        with self.assertRaises((binascii.Error, TypeError)):
+            self.project_credentials.decrypt(
+                {
+                    'cipher': 'aes', 'mode': 'gcm',
+                    'ts': 128, 'iv': 'aa', 'ct': 'aa'
+                }
+            )
 
 
 class TestKeypair(unittest.TestCase):
