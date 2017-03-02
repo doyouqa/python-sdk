@@ -1,3 +1,19 @@
+<a name=0.18.0"></a>
+# [0.18.0](https://github.com/OneID/oneID-connect-python/compare/0.17.2...0.18.0) (2017-03-01)
+
+
+### Bug Fixes
+
+* **keychain:** remove deprecated decryption params ([f3b9705](https://github.com/OneID/oneID-connect-python/commit/f3b9705))
+* **symcrypt:** AES-GCM using 96-bit IVs ([18f2d8a](https://github.com/OneID/oneID-connect-python/commit/18f2d8a))
+* **symcrypt:** better handling of hybrid mode ([79279a7](https://github.com/OneID/oneID-connect-python/commit/79279a7))
+
+
+### Features
+
+* **jwts:** include hint of sig state in new sigs ([1ec1127](https://github.com/OneID/oneID-connect-python/commit/1ec1127))
+
+
 <a name=0.17.2"></a>
 # [0.17.2](https://github.com/OneID/oneID-connect-python/compare/0.17.1...0.17.2) (2017-02-21)
 
