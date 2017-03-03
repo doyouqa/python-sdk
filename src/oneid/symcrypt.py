@@ -39,7 +39,18 @@ def aes_encrypt(plaintext, aes_key, legacy_support=True):
     :param aes_key: symmetric key to encrypt attribute value with
     :return: Dictionary (Flattened JWE) with base64-encoded ciphertext and base64-encoded iv
     """
-    iv = os.urandom(12)
+    return _aes_encrypt_with_iv_for_test(plaintext, aes_key, legacy_support)
+
+
+def _aes_encrypt_with_iv_for_test(plaintext, aes_key, legacy_support=True, _iv_for_test=None):
+    """
+    Encrypt using AES-GCM
+
+    :param plaintext: (string or bytes) that you want encrypted
+    :param aes_key: symmetric key to encrypt attribute value with
+    :return: Dictionary (Flattened JWE) with base64-encoded ciphertext and base64-encoded iv
+    """
+    iv = _iv_for_test or os.urandom(12)
     cipher_alg = Cipher(algorithms.AES(aes_key), modes.GCM(iv), backend=_BACKEND)
     encryptor = cipher_alg.encryptor()
     encr_value = encryptor.update(utils.to_bytes(plaintext)) + encryptor.finalize()
