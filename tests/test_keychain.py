@@ -13,6 +13,9 @@ from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
 from oneid import keychain, service, utils, exceptions
 
+from .common import keypair_from_nist_hex, hex2bytes
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -865,41 +868,27 @@ class TestKeypair(unittest.TestCase):
             # Not sure why COUNT=29 works, when it shouldn't, may be testing key validation
         ]
 
-        class _TestKeypair(keychain.Keypair):
-            def _calc_otherinfo(self, algorithm, party_u_info, party_v_info):
-                return self._otherinfo
-
         for vec in _CAVS_VECTORS:
             logger.debug('COUNT=%s, Result=%s/%s', vec['COUNT'], vec['Result'], vec['errno'])
-            otherinfo = bytes(bytearray.fromhex(vec['OI']))
+            otherinfo = hex2bytes(vec['OI'])
 
-            ue_jwk = {
-                "kty": "EC",
-                "crv": "P-256",
-                "x": utils.base64url_encode(bytearray.fromhex(vec['QeIUTx'])),
-                "y": utils.base64url_encode(bytearray.fromhex(vec['QeIUTy'])),
-                "d": utils.base64url_encode(bytearray.fromhex(vec['deIUT'])),
-            }
-            u_private_keypair = _TestKeypair.from_jwk(ue_jwk)
-            u_private_keypair._otherinfo = otherinfo
+            ux = vec['QeIUTx']
+            uy = vec['QeIUTy']
+            ud = vec['deIUT']
+
+            u_private_keypair = keypair_from_nist_hex(ux, uy, ud, otherinfo)
             u_public_keypair = _private_to_public(u_private_keypair)
 
-            vs_jwk = {
-                "kty": "EC",
-                "crv": "P-256",
-                "x": utils.base64url_encode(bytearray.fromhex(vec['QsCAVSx'])),
-                "y": utils.base64url_encode(bytearray.fromhex(vec['QsCAVSy'])),
-                "d": utils.base64url_encode(bytearray.fromhex(vec['dsCAVS'])),
-            }
+            ux = vec['QsCAVSx']
+            uy = vec['QsCAVSy']
+            ud = vec['dsCAVS']
 
             if not vec['Result'] and vec['errno'] in [1, 2]:
                 with self.assertRaises(ValueError):
-                    v_private_keypair = _TestKeypair.from_jwk(vs_jwk)
-                    v_private_keypair._otherinfo = otherinfo
+                    v_private_keypair = keypair_from_nist_hex(ux, uy, ud, otherinfo)
                     # v_public_keypair = _private_to_public(v_private_keypair)
             else:
-                v_private_keypair = _TestKeypair.from_jwk(vs_jwk)
-                v_private_keypair._otherinfo = otherinfo
+                v_private_keypair = keypair_from_nist_hex(ux, uy, ud, otherinfo)
                 v_public_keypair = _private_to_public(v_private_keypair)
 
                 ku = u_private_keypair.ecdh(v_public_keypair)
@@ -909,7 +898,7 @@ class TestKeypair(unittest.TestCase):
                 self.assertEqual(len(kv), 32)
 
                 if vec['Result']:
-                    dkm = bytes(bytearray.fromhex(vec['DKM']))
+                    dkm = hex2bytes(vec['DKM'])
                     self.assertEqual(len(dkm), 32)
 
                     self.assertEqual(ku, dkm)
