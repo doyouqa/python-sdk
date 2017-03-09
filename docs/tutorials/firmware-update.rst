@@ -37,6 +37,7 @@ The components of a oneID-enabled IoT applications are below:
 **EdgeDevices:** This is the identity of your IoT device in the IoT system.
 
 For our demo we will need to create
+
 * server.py - The device that wants to send a message to another device
 * device.py - The device that will recieve a message and requires a message to be co-signed by a trusted signatory
 
