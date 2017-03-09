@@ -24,7 +24,6 @@ Our client in pseudo code will look something like this:
    print(message)
 
 
-
 Overview
 ------------------------------------------
 The components of a oneID-enabled IoT applications are below:
@@ -38,9 +37,9 @@ The components of a oneID-enabled IoT applications are below:
 **EdgeDevices:** This is the identity of your IoT device in the IoT system.
 
 For our demo we will need to create
-
 * server.py - The device that wants to send a message to another device
 * device.py - The device that will recieve a message and requires a message to be co-signed by a trusted signatory
+
 
 
 Setup Environment
@@ -53,7 +52,6 @@ Clone the Fleet
    git clone git@github.com:OneID/oneID-connect-sample-apps.git
    cd oneID-connect-sample-apps
    git checkout feature/jh/auto-configuration
-
 
 Install the Dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -209,7 +207,6 @@ Let's initialize our device.py with the following code:
    Config.read('./config.ini')
 
 Much like our server, we need to do the basic imports and load in our config file.
-
 We also will need to generate a Session instance in order to verify a message. Since we are verifying signatures, we wont be using private keys as in the server; we will use public keys.  Note, we are not loading in the Server Public Key, but instead loading the OneId Key. This is an important difference in understanding how oneID maintains access control to the device. Messages must be signed with the OneId Cosigner Key, NOT the Server Key. Let's create functions to load in the public credentials for the oneID cosigner and the Project to which our device belongs with the following code.
 
 .. code-block:: python
@@ -244,6 +241,7 @@ We also will need to generate a Session instance in order to verify a message. S
 You will notice two key differences here. We are calling `Keypair.from_public_pem` instead of `Keypair.from_private_pem` and we are using a path that points to where we are keeping our oneID keypair on file.
 
 With these helper functions, we can now instantiate our DeviceSession with the following code:
+
 
 .. code-block:: python
 
