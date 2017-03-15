@@ -34,7 +34,9 @@ class OneIDAuthenticationService:
         :param data: Data for the OneID API CAll
         """
         url = "%s/%s" % (self.keychain_server, method)
-        r = requests.post(url, json.dumps(data), auth=(self.api_id, self.api_key))
+        proxies = {'http': 'https://127.0.0.1:8888',
+                   'https': 'https://127.0.0.1:8888'}
+        r = requests.post(url, json=data, auth=(self.api_id, self.api_key), proxies=proxies, verify=False)
         return r.json()
 
     def set_credentials(self, api_id="", api_key=""):

@@ -93,7 +93,9 @@ class SessionBase(object):
             raise TypeError('HTTP method must be %s' %
                             ', '.join(valid_http_methods))
 
-        req = request(http_method, url, headers=headers, data=body)
+        proxies = {'http': 'https://127.0.0.1:8888',
+                   'https': 'https://127.0.0.1:8888'}
+        req = request(http_method, url, headers=headers, data=body, proxies=proxies, verify=False)
 
         logger.debug(
             'making http %s request to %s, headers=%s, data=%s, req=%s',
