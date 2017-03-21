@@ -190,8 +190,10 @@ def extend_jws_signatures(
 
     multiple_sig_headers = _validated_headers(ordered_keypairs, multiple_sig_headers)
 
-    signature_indexes = [_get_signature_header(s, json_decoder).get('sidx', None)
-                         for s in ret.get('signatures', [])]
+    existing_headers = [_get_signature_header(s, json_decoder) for s in ret.get('signatures', [])]
+
+    signature_indexes = [h.get('sidx', None) for h in existing_headers]
+    kids = [h.get('kid', None) for h in existing_headers]
 
     if signature_indexes.count(None) <= 1:
         signature_indexes = [s for s in signature_indexes if s is not None]
@@ -201,6 +203,10 @@ def extend_jws_signatures(
             signature_offset = max(signature_indexes)
         multiple_sig_headers = _add_signature_indexes(multiple_sig_headers,
                                                       offset=(signature_offset + 1))
+
+    for sig_header in multiple_sig_headers:
+        sig_header['kids'] = kids
+        sig_header['sidxs'] = signature_indexes
 
     new_signatures = [_protected_signature(payload, k, json_encoder=json_encoder, header=h)
                       for (k, h) in zip(ordered_keypairs, multiple_sig_headers)]
@@ -263,7 +269,7 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
         claims = json_decoder(utils.to_string(
             utils.base64url_decode(claims_b64)))
         kid = header.get('kid', claims.get('iss', default_kid))
-        return [kid] if kid else []
+        return [{'kid': kid, 'kids': [], 'sidxs': []}] if kid else []
 
     try:
         jws = json_decoder(jws)
@@ -287,7 +293,14 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
 
         headers = sorted(headers, key=lambda h: h.get('sidx', 0))
 
-    return [h.get('kid', default_kid) for h in headers]
+    return [
+        {
+            'kid': h.get('kid', default_kid),
+            'kids': h.get('kids', []),
+            'sidxs': h.get('sidxs', []),
+        }
+        for h in headers
+    ]
 
 
 def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decoder=json.loads):

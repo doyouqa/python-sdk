@@ -229,6 +229,13 @@ class TestEncryptDecryptAttributes(unittest.TestCase):
         with self.assertRaises(ValueError):
             service.decrypt_attr_value(enc, self.key)
 
+    def test_decrypt_invalid_tag_size(self):
+        enc = service.encrypt_attr_value(self.data, self.key, False)
+        enc['tag'] = enc['tag'][:12]
+
+        with self.assertRaises(ValueError):
+            service.decrypt_attr_value(enc, self.key)
+
 
 class TestKeyWrapUnwrap(unittest.TestCase):
     def setUp(self):
