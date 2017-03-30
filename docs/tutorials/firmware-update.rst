@@ -277,7 +277,7 @@ Run the following
 
 .. code-block:: console
 
-    ONEID_API_SERVER_BASE_URL=https://api-dev.oneid.com python device.py
+    ONEID_API_SERVER_BASE_URL=https://api-demo.oneid.com python device.py
 
 It should generate a file called `signed_message.json' that has your signed message in it.
 
