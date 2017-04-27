@@ -289,7 +289,8 @@ class ServerSession(SessionBase):
         Verify a message received from/through one or more Devices
 
         :param message: JSON formatted JWS or JWT signed by the Device
-        :param device_credentials: :class:`~oneid.keychain.Credential` or list of Credentials to verify Device signature(s) against
+        :param device_credentials: :class:`~oneid.keychain.Credential`
+        or list of Credentials to verify Device signature(s) against
         :param get_oneid_cosignature: (default: True) verify with oneID first
         :return: verified message or False if not valid
         """
