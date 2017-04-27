@@ -4,6 +4,11 @@ dependencies:
   pre:
     - pip install -r dev_requirements.txt
 
+notify:
+  webhooks:
+    # - url: https://example.com/hooks/circle
+    - url: https://circleci.com/gh/OneID/developer-neustar-iot
+
 test:
   pre:
     - flake8
