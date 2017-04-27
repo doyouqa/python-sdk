@@ -4,10 +4,16 @@ dependencies:
   pre:
     - pip install -r dev_requirements.txt
 
-notify:
-  webhooks:
-    # - url: https://example.com/hooks/circle
-    - url: https://circleci.com/gh/OneID/developer-neustar-iot
+deployment:
+production:
+  branch: [master, develop]
+  commands:
+    - ./merge_to_developer-neustar-iot.sh
+
+# notify:
+#   webhooks:
+#     # - url: https://example.com/hooks/circle
+#     - url: https://circleci.com/gh/OneID/developer-neustar-iot
 
 test:
   pre:
