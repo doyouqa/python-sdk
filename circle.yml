@@ -4,11 +4,11 @@ dependencies:
   pre:
     - pip install -r dev_requirements.txt
 
-deployment:
-  production:
-    branch: [master, develop]
-    commands:
-      - ./merge_to_developer-neustar-iot.sh
+# deployment:
+#   production:
+#     branch: [master, develop]
+#     commands:
+#       - ./merge_to_developer-neustar-iot.sh
 
 # notify:
 #   webhooks:
@@ -18,5 +18,6 @@ deployment:
 test:
   pre:
     - flake8
+    - ./merge_to_developer-neustar-iot.sh
   override:
     - tox
