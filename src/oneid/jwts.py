@@ -29,7 +29,9 @@ RESERVED_HEADERS = [
     'typ',
     'alg',
     'kid',
-    'sidx'
+    'sidx',
+    'kids',
+    'sidxs',
 ]
 MINIMAL_JWT_HEADER = {
     'typ': 'JWT',
@@ -504,7 +506,7 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
             logger.debug('invalid header, extra elements: %s', header)
             raise exceptions.InvalidFormatError
     else:
-        if 'typ' not in header or header['typ'] not in ['JWT', 'JOSE', 'JOSE+JSON']:
+        if 'typ' not in header or header['typ'] not in ['JWT', 'JOSE+JSON']:
             logger.debug('invalid "typ" in header: %s', header)
             raise exceptions.InvalidFormatError
 
@@ -542,9 +544,9 @@ def _verify_claims(payload, json_decoder):
             raise exceptions.InvalidClaimsError
         nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
 
-    if 'jti' in claims and not nonces.verify_nonce(claims['jti'], nbf):
-        logger.warning('Invalid nonce: %s', claims['jti'])
-        raise exceptions.InvalidClaimsError
+    # if 'jti' in claims and not nonces.verify_nonce(claims['jti'], nbf):
+    #     logger.warning('Invalid nonce: %s', claims['jti'])
+    #     raise exceptions.InvalidClaimsError
 
     return claims
 
