@@ -192,6 +192,28 @@ class DeviceSession(SessionBase):
 
         return jwts.make_jws(claims, self.identity_credentials.keypair)
 
+    def add_signature(self, message, default_jwt_kid=None):
+        """
+        Add this Device's signature to a message
+
+        Note that the semantics of this signature are application-specific. If the
+        application expects only verified messages to be co-signed, the caller is
+        responsible for verifying the message first. Otherwise, the signature only
+        indicates that the message was processed by this Device.
+
+        Likewise, this method will not decrypt a JWE. If the message was encrypted
+        for this Device, and should be decrypted and re-signed, the caller should
+        do that through other means, such as :func:`verify_message` and :func:`prepare_message`.
+
+        :param str message: Previously-signed JWS (Compact or JSON) or JWT
+        :param str default_jwt_kid: (optional) value for 'kid' header field if passing a JWT
+            without one
+        :return: Signed JWS with additional Device signature
+        """
+        return jwts.extend_jws_signatures(
+            message, self.identity_credentials.keypair, default_jwt_kid
+        )
+
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -305,11 +327,18 @@ class ServerSession(SessionBase):
             keypairs += [self.oneid_credentials.keypair]
 
             # TODO: if not already signed by oneID: (for now, do as asked, let caller deal with it)
-            message = self.authenticate.edge_device(
-                project_id=self.project_credentials.keypair.identity,
-                identity=keypairs[0].identity,  # arbitrary choice, for endpoint
-                body=message,
-            )
+
+            if len(device_credentials) == 1:
+                message = self.authenticate.edge_device(
+                    project_id=self.project_credentials.keypair.identity,
+                    identity=keypairs[0].identity,
+                    body=message,
+                )
+            else:
+                message = self.authenticate.project(
+                    project_id=self.project_credentials.keypair.identity,
+                    body=message,
+                )
 
             if not message:
                 logger.debug('oneID refused to co-sign device message')

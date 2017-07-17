@@ -17,7 +17,7 @@ class MockResponse:
         self.status_code = status_code
 
 
-def _handle_auth_endpoint(headers=None, data=None):
+def _handle_auth_endpoint(headers=None, data=None, allow_multiple=False):
     logger.debug('data=%s', data)
 
     try:
@@ -26,6 +26,11 @@ def _handle_auth_endpoint(headers=None, data=None):
         )
         oneid_key.identity = 'oneID'
         jwts.verify_jws(data)
+
+        if not allow_multiple and len(jwts.get_jws_key_ids(data)) != 1:
+            logger.debug('not verifying multiple signatures, data=%s', data)
+            return MockResponse('', 204)
+
         jws = jwts.extend_jws_signatures(data, oneid_key)
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
@@ -56,6 +61,12 @@ def mock_request(http_method, url, headers=None, data=None):
     elif url == 'https://myservice/auth/endpoint':
         if http_method.lower() == 'post':
             return _handle_auth_endpoint(headers, data)
+        else:
+            return MockResponse('Method Not Allowed', 405)
+
+    elif url == 'https://myservice/auth/generic_endpoint':
+        if http_method.lower() == 'post':
+            return _handle_auth_endpoint(headers, data, True)
         else:
             return MockResponse('Method Not Allowed', 405)
 
@@ -400,24 +411,34 @@ class TestServerSession(unittest.TestCase):
                     'arguments': {},
                 },
             },
-            'authenticate': {
-                'server': {
-                    'endpoint': '/auth/endpoint',
-                    'method': 'POST',
-                    'arguments': {
-                        'identity': {
-                            'location': 'url',
-                            'required': True,
-                        },
-                        'message': {
-                            'location': 'jwt',
-                            'required': True,
-                        },
-                    },
+            'authenticate': {},
+        }
+        self.fake_config['authenticate']['project'] = {
+            'endpoint': '/auth/generic_endpoint',
+            'method': 'POST',
+            'arguments': {
+                'message': {
+                    'location': 'jwt',
+                    'required': True,
                 },
             },
         }
-        self.fake_config['authenticate']['edge_device'] = self.fake_config['authenticate']['server']
+        self.fake_config['authenticate']['edge_device'] = \
+            self.fake_config['authenticate']['server'] = {
+
+            'endpoint': '/auth/endpoint',
+            'method': 'POST',
+            'arguments': {
+                'identity': {
+                    'location': 'url',
+                    'required': True,
+                },
+                'message': {
+                    'location': 'jwt',
+                    'required': True,
+                },
+            },
+        }
 
     def tearDown(self):
         nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
@@ -684,6 +705,36 @@ class TestServerSession(unittest.TestCase):
         )
         with self.assertRaises(exceptions.InvalidAuthentication):
             sess.verify_message(message, self.id_credentials)
+
+    def test_add_signature_to_jwt(self):
+        claims = {
+            'a': 1,
+        }
+        sess = session.DeviceSession(self.id_credentials)
+
+        jwt = jwts.make_jwt(claims, self.alt_credentials.keypair)
+        jws = sess.add_signature(jwt)
+
+        claims = jwts.verify_jws(jws, [self.alt_credentials.keypair, self.id_credentials.keypair])
+
+        self.assertIsInstance(claims, dict)
+        self.assertIn("a", claims)
+        self.assertEqual(claims.get("a"), 1)
+
+    def test_add_signature_to_jws(self):
+        claims = {
+            'a': 1,
+        }
+        sess = session.DeviceSession(self.id_credentials)
+
+        jws1 = jwts.make_jws(claims, self.alt_credentials.keypair)
+        jws2 = sess.add_signature(jws1)
+
+        claims = jwts.verify_jws(jws2, [self.alt_credentials.keypair, self.id_credentials.keypair])
+
+        self.assertIsInstance(claims, dict)
+        self.assertIn("a", claims)
+        self.assertEqual(claims.get("a"), 1)
 
 
 class TestAdminSession(unittest.TestCase):
