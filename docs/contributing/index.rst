@@ -11,33 +11,45 @@ collaboration tools exclusively for managing development.
 
 Getting Started
 ---------------
-Working on ``oneID-connect`` requires additional packages, `nose2`_, `mock`_ and `Sphinx`_.
+Working on ``oneID-connect`` requires additional packages, such as `pytest`_, `mock`_ and `Sphinx`_.
 
 .. code-block:: console
 
-  $ pip install nose2 mock
-  $ pip install Sphinx
+  $ pip install -r dev_requirements
+  $ pip install -e .
+  $ pip install -r docs_requirements
 
 
 You are now ready to run tests and build documentation.
 
-.. _nose2: http://nose2.readthedocs.org/en/latest/index.html
+.. _pytest: https://docs.pytest.org/en/latest/
 .. _mock: https://github.com/testing-cabal/mock
 .. _Sphinx: http://sphinx-doc.org/index.html
 
 Running Tests
 -------------
-``oneID-connect`` unit tests are found in the ``tests/`` directory and are designed to use python's
-``unittest`` library. ``nose2`` will discover the tests automatically.
+Unit tests are found in the ``tests/`` directory and are designed to use python's
+``unittest`` library. ``pytest`` will discover the tests automatically.
 
 .. code-block:: console
 
-  $ nose2
+  $ pytest
+
+Cross-version tests require installing additional Python versions, and setting up the local
+``tox`` environment:
+
+.. code-block:: console
+
+  $ pyenv install 3.6.1
+  $ pyenv install 3.5.1
+  $ pyenv install 3.4.0
+  $ pyenv install 2.7.13
+  $ pyenv local 3.6.1 3.5.1 3.4.0 2.7.13
 
 
 Building Documentation
 ----------------------
-``oneID-connect`` documentation is stored in the ``docs/`` directory. It is written
+Documentation is stored in the ``docs/`` directory. It is written
 in `reStructedText`_ and rendered using `Sphinx`_.
 
 .. code-block:: console

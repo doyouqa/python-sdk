@@ -7,8 +7,6 @@ import logging
 from unittest import TestCase
 import mock
 
-# from nose.tools import nottest
-
 from oneid import file_adapter
 
 logger = logging.getLogger(__name__)
