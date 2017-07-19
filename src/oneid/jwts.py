@@ -228,7 +228,7 @@ def remove_jws_signatures(jws, kids_to_remove, json_encoder=json.dumps, json_dec
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :return: JWS (may have empty signature list if last one removed)
     """
-    jws_dict = json_decoder(jws)
+    jws_dict = json_decoder(utils.to_string(jws))
 
     if isinstance(kids_to_remove, six.string_types + (six.binary_type,)):
         kids_to_remove = [kids_to_remove]
