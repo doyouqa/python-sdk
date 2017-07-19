@@ -5,7 +5,11 @@ import contextlib
 import boto3
 import botocore
 
+import logging
+
 from .. import utils
+
+logger = logging.getLogger(__name__)
 
 
 def join_paths(*paths):
@@ -78,8 +82,8 @@ def _bucket_exists(bucket_name):
         _s3().meta.client.head_bucket(Bucket=bucket_name)
         return True
     except botocore.exceptions.ClientError as e:
-        error_code = int(e.response['Error']['Code'])
-        if error_code == 404:
+        logger.debug('e.response=%s', e.response)
+        if e.response['Error']['Code'] == 'NoSuchBucket':
             return False
         raise  # pragma: no cover
 
@@ -90,7 +94,7 @@ def _object_exists(bucket_name, key_name):
         _s3().meta.client.head_object(Bucket=bucket_name, Key=key_name)
         return True
     except botocore.exceptions.ClientError as e:
-        error_code = int(e.response['Error']['Code'])
-        if error_code == 404:
+        logger.debug('e.response=%s', e.response)
+        if e.response['Error']['Code'] == '404':
             return False
         raise  # pragma: no cover

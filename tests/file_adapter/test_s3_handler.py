@@ -10,12 +10,13 @@ import boto3
 from unittest import TestCase
 from moto import mock_s3
 
-# from nose.tools import nottest
-
 from oneid import utils
 from oneid.file_adapter import s3_handler
 
 logger = logging.getLogger(__name__)
+
+logging.getLogger('botocore').propagate = False
+logging.getLogger('boto3').propagate = False
 
 
 @mock_s3
@@ -36,11 +37,12 @@ class TestS3Handler(TestCase):
 
     def tearDown(self):
         try:
-            self.bucket.delete_objects(Objects=[{
-                'Key': self.key,
-            }], Quiet=True)
-            self.bucket.delete()
+            if self.object:
+                self.object.delete()
+            if self.bucket:
+                self.bucket.delete()
         except:
+            # logger.debug('error deleting objects/bucket', exc_info=True)
             pass
 
     def test_join_paths(self):
@@ -52,6 +54,7 @@ class TestS3Handler(TestCase):
     def test_file_exists(self):
         self.assertTrue(s3_handler.file_exists(self.filename))
         self.object.delete()
+        self.object = None
         logger.debug('removed %s', self.filename)
         self.assertFalse(s3_handler.file_exists(self.filename))
 
@@ -60,10 +63,19 @@ class TestS3Handler(TestCase):
             s3_handler.file_directory_exists(self.filename)
         )
         self.object.delete()
+        self.object = None
+        self.assertFalse(
+            s3_handler.file_exists(self.filename)
+        )
         self.assertTrue(
             s3_handler.file_directory_exists(self.filename)
         )
+
+        for key in self.bucket.objects.all():
+            logger.debug('key=%s', key)
+
         self.bucket.delete()
+        self.bucket = None
         self.assertFalse(
             s3_handler.file_directory_exists(self.filename)
         )

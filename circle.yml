@@ -1,8 +1,12 @@
+machine:
+  python:
+    version: 3.6.1
+
 dependencies:
-  override:
-    - pyenv local 2.7.5 3.4.0 3.5.0
   pre:
-    - pip install -r dev_requirements.txt
+    - pip install flake8 tox
+  override:
+    - pyenv local 2.7.12 3.4.3 3.5.1 3.6.1
 
 test:
   pre:

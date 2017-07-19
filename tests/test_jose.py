@@ -11,8 +11,6 @@ import logging
 
 from unittest import TestCase
 
-# from nose.tools import nottest
-
 from oneid import jose, jwes, jwts, service, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
