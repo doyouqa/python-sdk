@@ -667,6 +667,12 @@ class TestJWSs(TestCase):
         verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
         self.assertIsInstance(verified_msg, dict)
 
+    def test_remove_bytes_jws_signature(self):
+        jws = utils.to_bytes(jwts.make_jws({'a': 1}, self.keypairs))
+        jws = jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
+        verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
+        self.assertIsInstance(verified_msg, dict)
+
     def test_none_headers(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:1], multiple_sig_headers=None)
         jws_headers = jwts.get_jws_headers(jws)
