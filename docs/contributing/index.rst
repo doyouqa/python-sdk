@@ -1,43 +1,55 @@
 Contributing
 ============
 
-If you have improvements to ``oneID-connect``, send us your pull requests! ``oneID-connect``
-is hosted on GitHub at `<https://github.com/OneID/oneID-connect-python>`_ and
+If you have improvements to ``Neustar-TDI/python-sdk``, send us your pull requests! ``Neustar-TDI/python-sdk``
+is hosted on GitHub at `<https://github.com/Neustar-TDI/python-sdk>`_ and
 we welcome contributions of all forms. We use GitHub's `issue tracking`_ and
 collaboration tools exclusively for managing development.
 
-.. _issue tracking: https://github.com/OneID/oneID-connect-python/issues
+.. _issue tracking: https://github.com/Neustar-TDI/python-sdk/issues
 
 
 Getting Started
 ---------------
-Working on ``oneID-connect`` requires additional packages, `nose2`_, `mock`_ and `Sphinx`_.
+Working on ``Neustar-TDI/python-sdk`` requires additional packages, such as `pytest`_, `mock`_ and `Sphinx`_.
 
 .. code-block:: console
 
-  $ pip install nose2 mock
-  $ pip install Sphinx
+  $ pip install -r dev_requirements
+  $ pip install -e .
+  $ pip install -r docs_requirements
 
 
 You are now ready to run tests and build documentation.
 
-.. _nose2: http://nose2.readthedocs.org/en/latest/index.html
+.. _pytest: https://docs.pytest.org/en/latest/
 .. _mock: https://github.com/testing-cabal/mock
 .. _Sphinx: http://sphinx-doc.org/index.html
 
 Running Tests
 -------------
-``oneID-connect`` unit tests are found in the ``tests/`` directory and are designed to use python's
-``unittest`` library. ``nose2`` will discover the tests automatically.
+Unit tests are found in the ``tests/`` directory and are designed to use python's
+``unittest`` library. ``pytest`` will discover the tests automatically.
 
 .. code-block:: console
 
-  $ nose2
+  $ pytest
+
+Cross-version tests require installing additional Python versions, and setting up the local
+``tox`` environment:
+
+.. code-block:: console
+
+  $ pyenv install 3.6.1
+  $ pyenv install 3.5.1
+  $ pyenv install 3.4.0
+  $ pyenv install 2.7.13
+  $ pyenv local 3.6.1 3.5.1 3.4.0 2.7.13
 
 
 Building Documentation
 ----------------------
-``oneID-connect`` documentation is stored in the ``docs/`` directory. It is written
+Documentation is stored in the ``docs/`` directory. It is written
 in `reStructedText`_ and rendered using `Sphinx`_.
 
 .. code-block:: console
@@ -54,13 +66,13 @@ Submitting Bugs
  only open to highly trusted cryptography developers.
 
 * Check that someone hasn't already filed the bug by searching GitHub's `issue tracker`_.
-* Don't use GitHub's issue tracker for support questions. Use `Stack Overflow`_ and tag ``oneID-connect`` for that.
-* Provide information so we can replicate the bug on our end. (Python version, oneID-connect version, OS, code samples, et cetera).
+* Don't use GitHub's issue tracker for support questions. Use `Stack Overflow`_ and tag ``Neustar-TDI/python-sdk`` for that.
+* Provide information so we can replicate the bug on our end. (Python version, SDK version, OS, code samples, et cetera).
 
 
 Requesting Features
 -------------------
-We're always trying to make ``oneID-connect`` better, and your feature requests are a key part of that.
+We're always trying to make ``Neustar-TDI/python-sdk`` better, and your feature requests are a key part of that.
 
 * Check that someone hasn't already requested the feature by searching GitHub's `issue tracker`_.
 * Clearly and concisely describe the feature and how you would like to see it implemented. Include example code if possible.
@@ -68,7 +80,7 @@ We're always trying to make ``oneID-connect`` better, and your feature requests 
 
 
 .. _security@oneID.com: mailto:security@oneid.com
-.. _issue tracker: https://github.com/OneID/oneID-connect-python/issues
+.. _issue tracker: https://github.com/Neustar-TDI/python-sdk/issues
 .. _Stack Overflow: http://stackoverflow.com/questions/tagged/oneid-connect
 
 
@@ -105,7 +117,7 @@ Contributing Changes
  - If a feature was introduced in 1.1 and the latest release is 1.3, and a bug is found in that feature,
    make your branch based on 1.1. The maintainer will then forward-port it to 1.3 and master.
 
-* You **MUST** have legal permission to distribute any code you contribute to ``oneID-connect``.
+* You **MUST** have legal permission to distribute any code you contribute to ``Neustar-TDI/python-sdk``.
 * Class names which contains acronyms or initials should always be capitalized. i.e. ``AESEncrypt`` not ``AesEncrypt``.
 
 .. _PEP 8: https://www.python.org/dev/peps/pep-0008/

@@ -15,8 +15,6 @@ import logging
 
 from unittest import TestCase
 
-# from nose.tools import nottest
-
 from oneid import service, keychain, jwts, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
@@ -665,6 +663,12 @@ class TestJWSs(TestCase):
 
     def test_remove_jws_signature(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs)
+        jws = jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
+        verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
+        self.assertIsInstance(verified_msg, dict)
+
+    def test_remove_bytes_jws_signature(self):
+        jws = utils.to_bytes(jwts.make_jws({'a': 1}, self.keypairs))
         jws = jwts.remove_jws_signatures(jws, self.keypairs[0].identity)
         verified_msg = jwts.verify_jws(jws, self.keypairs[1:])
         self.assertIsInstance(verified_msg, dict)

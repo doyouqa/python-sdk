@@ -3,12 +3,12 @@ Sending Two-Factor Authenticated Firmware update to IoT Device
 Sending a firmware update to all of your devices should always be secure.
 The last thing you want is a malicious update sent to your entire fleet of devices.
 
-For this example, we're going to use oneID's two-factor authentication service.
-oneID's two-factor authentication service enables you to manage all your servers
+For this example, we're going to use Neustar TDI's two-factor authentication service.
+Neustar TDI's two-factor authentication service enables you to manage all your servers
 and IoT devices. If a server or IoT device has been compromised or taken out of
 commission, you can easily revoke it's signing permissions.
 
-Before we begin, you will need ``oneID-cli`` and a `oneID developer account`_.
+Before we begin, you will need ``oneID-cli`` and a `Neustar TDI developer account`_.
 
 .. code-block:: console
 
@@ -16,19 +16,19 @@ Before we begin, you will need ``oneID-cli`` and a `oneID developer account`_.
 
 
 
-Intro to oneID's Two-Factor Authentication
+Intro to Neustar TDI's Two-Factor Authentication
 ------------------------------------------
 Two-factor means that there will be two signatures for each message.
 **BOTH** signatures must be verified before reading the message.
 Since there are two signatures that need to be verified on the IoT device,
 the IoT device will need to store two public keys that will be used for message verification.
-oneID will provide you with both of these public keys for the IoT device.
+Neustar TDI will provide you with both of these public keys for the IoT device.
 
 Steps:
 ~~~~~~
 #. Server prepares a message for the IoT device and signs it.
-#. Server makes a two-factor authentication request to oneID with the prepared message.
-#. oneID verifies the server's identity and responds with oneID's signature for the message.
+#. Server makes a two-factor authentication request to Neustar TDI with the prepared message.
+#. Neustar TDI verifies the server's identity and responds with Neustar TDI's signature for the message.
 #. Server then re-signs the message with the shared Project key.
 #. Server sends the message with the two signatures to the IoT device.
 #. IoT device verifies **BOTH** signatures.
@@ -44,7 +44,7 @@ First we need to configure your terminal.
    oneid-cli configure
 
 This will prompt you for your ``ACCESS_KEY``, ``ACCESS_SECRET``, and ``ONEID_KEY``.
-You can find all these in your `oneID developer console`_
+You can find all these in your `Neustar TDI developer console`_
 
 
 Creating a Project
@@ -59,7 +59,7 @@ Let's create a new Project.
 This will prompt you to generate the public/private key pair for the Project.
 Answer 'Y' at this step.
 You will be given the Project ID and three keys.
-The first key is a oneID verification public key.
+The first key is a Neustar TDI verification public key.
 The second is the Project verification public key.
 The third is your Project **SECRET** key.
 
@@ -68,7 +68,7 @@ The third is your Project **SECRET** key.
   If you lose this key, you will lose your ability to send authenticated messages`
   to your devices.
 
-The oneID verification public key will be given to all your edge devices and used
+The Neustar TDI verification public key will be given to all your edge devices and used
 to verify messages sent from a server.
 
 In the following steps, we will assume a Project ID of "d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9".
@@ -82,7 +82,7 @@ The message will be a url to the CDN where the firmware update is hosted
 and a checksum the IoT device will use to verify the download.
 
 Before we can sign any messages, we need to give the server an identity
-oneID can verify.
+Neustar TDI can verify.
 
 .. code-block:: console
 
@@ -119,14 +119,14 @@ In Python, we're just going to hardcode the path to these keys for quick access.
 
     logger = logging.getLogger('fw_update.py')
 
-    # Unique Project ID provided by oneID
+    # Unique Project ID provided by Neustar TDI
     PROJECT_ID = 'b7f276d1-6c86-4f57-85e8-70105316225b'
     PROJECT_PROJECT_ID = 'project/' + PROJECT_ID
 
     # Unique Server ID,
     SERVER_ID = '709ec376-7e8c-40fc-94ee-14887023c885'
 
-    # Secret keys we downloaded from oneID Developer Portal
+    # Secret keys we downloaded from Neustar TDI Developer Portal
     server_secret_key_path = (
         './project-{pid}/server-{sid}/server-{sid}-priv.pem'.format(
             pid=PROJECT_ID, sid=SERVER_ID
@@ -171,9 +171,9 @@ Just like we did with the server, we need to provision our IoT device.
     $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
 
 
-Now we need to copy over the oneID verifier key, Project verifier key and the
-new device secret key. The oneID verifier key can be downloaded
-from the `oneID developer console`_.
+Now we need to copy over the Neustar TDI verifier key, Project verifier key and the
+new device secret key. The Neustar TDI verifier key can be downloaded
+from the `Neustar TDI developer console`_.
 
 You can print out your Project verifier key by adding a snippet to the previous code
 example.
@@ -185,7 +185,7 @@ example.
    print(project_verifier)
 
 If you can SSH into your IoT device, you can do the same thing that we did with the server
-and copy over the device identity secret key. Since the oneID and Project verifier keys
+and copy over the device identity secret key. Since the Neustar TDI and Project verifier keys
 are static for all devices in a Project, we can hard code them in.
 
 .. code-block:: console
@@ -232,6 +232,6 @@ by verifying the digital signatures.
         logger.warning('error: ', exc_info=True)
 
 
-.. _oneID developer account: https://developer.oneid.com/console
-.. _oneID developer console: https://developer.oneid.com/console
+.. _Neustar TDI developer account: https://developer.oneid.com/console
+.. _Neustar TDI developer console: https://developer.oneid.com/console
 .. _Redis Quick Start: http://redis.io/topics/quickstart

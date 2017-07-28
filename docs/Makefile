@@ -87,9 +87,9 @@ qthelp:
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
-	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/oneID-py.qhcp"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/Neustar-TDI.qhcp"
 	@echo "To view the help file:"
-	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/oneID-py.qhc"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/Neustar-TDI.qhc"
 
 applehelp:
 	$(SPHINXBUILD) -b applehelp $(ALLSPHINXOPTS) $(BUILDDIR)/applehelp
@@ -104,8 +104,8 @@ devhelp:
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
-	@echo "# mkdir -p $$HOME/.local/share/devhelp/oneID-py"
-	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/oneID-py"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/Neustar-TDI"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/Neustar-TDI"
 	@echo "# devhelp"
 
 epub:

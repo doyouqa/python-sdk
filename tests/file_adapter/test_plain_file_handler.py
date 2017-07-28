@@ -8,8 +8,6 @@ import logging
 
 from unittest import TestCase
 
-# from nose.tools import nottest
-
 from oneid import utils
 from oneid.file_adapter import plain_file_handler
 

@@ -1,3 +1,18 @@
+<a name="0.19.0"></a>
+# [](https://github.com/Neustar-TDI/python-sdk/compare/0.18.0...0.19.0) (2017-07-28)
+
+
+### Bug Fixes
+
+* **jwts:** remove_jws_signatures handles bytes ([f6cf363](https://github.com/Neustar-TDI/python-sdk/commit/f6cf363))
+
+
+### Features
+
+* **ServerSession:** support for multiple sigs ([c1fdb29](https://github.com/Neustar-TDI/python-sdk/commit/c1fdb29))
+
+
+
 <a name=0.18.0"></a>
 # [0.18.0](https://github.com/OneID/oneID-connect-python/compare/0.17.2...0.18.0) (2017-03-01)
 
