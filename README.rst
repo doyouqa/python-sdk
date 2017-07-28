@@ -1,5 +1,5 @@
-.. image:: https://circleci.com/gh/OneID/oneID-connect-python.svg?style=svg
-    :target: https://circleci.com/gh/OneID/oneID-connect-python
+.. image:: https://circleci.com/gh/Neustar-TDI/python-sdk.svg?style=svg
+    :target: https://circleci.com/gh/Neustar-TDI/python-sdk
 
 oneID Connect
 =============
