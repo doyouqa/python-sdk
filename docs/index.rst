@@ -1,26 +1,24 @@
-.. oneID-connect documentation master file, created by
+.. python-sdk documentation master file, created by
    sphinx-quickstart on Mon Nov  2 17:57:31 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-oneID-connect
-=============
-``oneID-connect`` is a Python authentication framework for the Internet of Things (IoT), servers and end-users.
+Neustar Trusted Device Identity (TDI)
+=====================================
+Neustar TDI (formerly oneID-connect) is an authentication framework for the Internet of Things (IoT), servers and end-users.
 By sending messages with digital signatures, you can authenticate the origin of the message and
-ensure the message hasn't been tampered with. ``oneID-connect`` makes it simple for projects that need to
+ensure the message hasn't been tampered with. Neustar TDI makes it simple for projects that need to
 send authenticated messages and verify the authentication of messages.
 
-``oneID-connect`` can be installed on IoT devices and servers that support python 2.7.
-``oneID-connect`` depends on two external libraries: the cryptography.io python package and openSSL.
+``Neustar-TDI/python-sdk`` can be installed on IoT devices and servers that support python 2.7, 3.4, 3.5 or 3.6.
+``Neustar-TDI/python-sdk`` depends on two external libraries: the cryptography.io python package and openSSL.
 
 
 
 Introduction
 ------------
-oneID has been ridding the internet of user names and passwords for several years now. We've recently
-decided to expand our platform to include IoT devices. At oneID, we believe passwords are cumbersome
-and incredibly insecure. Trying to type a user name and password on a device that's smaller than your
-finger isn't ideal and incredibly frustrating. So oneID has created a secure two-factor mutual authentication
+Security for IoT devices can be challenging to implement and difficult to mange at scale.
+So Neustar has created a secure two-factor mutual authentication
 platform that securely connects users to their IoT devices, while enabling product servers to securely send firmware updates
 to those same IoT devices. We do this using state of the art `Elliptical Curve cryptography`_.
 

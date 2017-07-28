@@ -33,7 +33,7 @@ After you've flashed and configured your Intel Edison, we can setup the Intel Ed
 
     opkg install python-pip
 
-* Install oneID-py:
+* Install the SDK:
 
 .. code-block:: console
 
