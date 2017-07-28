@@ -11,7 +11,7 @@ __summary__ = ("Neustar TDI is an identity & authentication "
 
 __uri__ = "https://github.com/OneID/oneID-connect-python"
 
-__version__ = "0.19.0-dev1"
+__version__ = "0.19.0"
 
 __author__ = "oneID Inc."
 __email__ = "support@oneID.com"
