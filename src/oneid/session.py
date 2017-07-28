@@ -17,9 +17,9 @@ class SessionBase(object):
     """
     Abstract Session Class
 
-    :ivar identity_credentials: oneID identity :class:`~oneid.keychain.Credentials`
+    :ivar identity_credentials: TDI identity :class:`~oneid.keychain.Credentials`
     :ivar project_credentials: unique project credentials :class:`~oneid.keychain.Credentials`
-    :ivar oneid_credentials: oneID project credentials :class:`~oneid.keychain.Credentials`
+    :ivar oneid_credentials: TDI project credentials :class:`~oneid.keychain.Credentials`
     :ivar oneid_credentials: peer credentials :class:`~oneid.keychain.Credentials`
     :ivar config: Dictionary or configuration keyword arguments
     """
@@ -220,7 +220,7 @@ class DeviceSession(SessionBase):
 
 class ServerSession(SessionBase):
     """
-    Enable Server to request two-factor Authentication from oneID
+    Enable Server to request two-factor Authentication from TDI Core
     """
     def __init__(self, identity_credentials=None, project_credentials=None,
                  oneid_credentials=None, peer_credentials=None, config=None):
@@ -293,7 +293,7 @@ class ServerSession(SessionBase):
         )
 
         if not oneid_response:
-            logger.debug('oneID refused to co-sign server message')
+            logger.debug('TDI Core refused to co-sign server message')
             raise exceptions.InvalidAuthentication
 
         stripped_response = jwts.remove_jws_signatures(
@@ -311,7 +311,7 @@ class ServerSession(SessionBase):
         :param message: JSON formatted JWS or JWT signed by the Device
         :param device_credentials: :class:`~oneid.keychain.Credential` (or list of them)
             to verify Device signature(s) against
-        :param get_oneid_cosignature: (default: True) verify with oneID first
+        :param get_oneid_cosignature: (default: True) verify with TDI Core first
         :return: verified message or False if not valid
         """
 
@@ -326,7 +326,7 @@ class ServerSession(SessionBase):
         if get_oneid_cosignature:
             keypairs += [self.oneid_credentials.keypair]
 
-            # TODO: if not already signed by oneID: (for now, do as asked, let caller deal with it)
+            # TODO: if not already signed by Core: (for now, do as asked, let caller deal with it)
 
             if len(device_credentials) == 1:
                 message = self.authenticate.edge_device(
@@ -341,7 +341,7 @@ class ServerSession(SessionBase):
                 )
 
             if not message:
-                logger.debug('oneID refused to co-sign device message')
+                logger.debug('TDI Core refused to co-sign device message')
                 raise exceptions.InvalidAuthentication
 
         ret = jwts.verify_jws(message, keypairs)
@@ -359,7 +359,7 @@ class ServerSession(SessionBase):
 
 class AdminSession(SessionBase):
     """
-    Admin Users will only interface with oneID service,
+    Admin Users will only interface with TDI Core service,
     They only need an identity_credentials and oneid_credentials
     to verify responses
     """

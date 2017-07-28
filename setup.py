@@ -40,7 +40,7 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
 
-    keywords='oneID IoT Authentication',
+    keywords='Neustar Trusted Device Identity (TDI) IoT Authentication',
     package_dir={"": "src"},
     packages=find_packages(where='src',
                            exclude=['contrib', 'docs', 'tests*',

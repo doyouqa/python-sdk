@@ -1,7 +1,7 @@
-Contributing to oneID Connect
-=============================
+Contributing to Neustar TDI
+===========================
 
-As an open source project, oneID Connect welcomes contributions of many forms.
+As an open source project, Neustar TDI welcomes contributions of many forms.
 
 Examples of contributions include:
 

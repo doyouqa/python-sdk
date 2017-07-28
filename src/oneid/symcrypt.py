@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Provides useful functions for interacting with the oneID API, including creation of
+Provides useful functions for interacting with the TDI Core API, including creation of
 keys, etc.
 """
 from __future__ import unicode_literals, division
