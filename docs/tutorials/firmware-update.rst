@@ -10,7 +10,7 @@ commission, you can easily revoke it's signing permissions.
 
 Before we begin, you will need ``oneID-cli`` and a `Neustar TDI developer account`_.
 
-.. code-block:: console
+.. code:: console
 
    $ pip install oneid-cli
 
@@ -39,9 +39,9 @@ Setup
 -----
 First we need to configure your terminal.
 
-.. code-block:: console
+.. code:: console
 
-   oneid-cli configure
+   $ oneid-cli configure
 
 This will prompt you for your ``ACCESS_KEY``, ``ACCESS_SECRET``, and ``ONEID_KEY``.
 You can find all these in your `Neustar TDI developer console`_
@@ -52,7 +52,7 @@ Creating a Project
 All users, servers and edge devices need to be associated with a Project.
 Let's create a new Project.
 
-.. code-block:: console
+.. code:: console
 
    $ oneid-cli create-project --name "my epic project"
 
@@ -84,7 +84,7 @@ and a checksum the IoT device will use to verify the download.
 Before we can sign any messages, we need to give the server an identity
 Neustar TDI can verify.
 
-.. code-block:: console
+.. code:: console
 
    $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
 
@@ -98,7 +98,7 @@ This will generate a new **SECRET** ``.pem`` file.
 If you created the server secret key on your personal computer, we need to copy it over to the
 server along with the Project key that was generated when you first created the Project.
 
-.. code-block:: console
+.. code:: console
 
     $ scp /Users/me/secret/server_secret.pem ubuntu@10.1.2.3:/home/www/server_secret.pem
     $ scp /Users/me/secret/project_secret.pem ubuntu@10.1.2.3:/home/www/project_secret.pem
@@ -107,7 +107,7 @@ server along with the Project key that was generated when you first created the 
 In Python, we're just going to hardcode the path to these keys for quick access.
 
 
-.. code-block:: python
+.. code:: python
 
     import json
     import logging
@@ -166,7 +166,7 @@ IoT Device
 ~~~~~~~~~~
 Just like we did with the server, we need to provision our IoT device.
 
-.. code-block:: console
+.. code:: console
 
     $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
 
@@ -178,7 +178,7 @@ from the `Neustar TDI developer console`_.
 You can print out your Project verifier key by adding a snippet to the previous code
 example.
 
-.. code-block:: python
+.. code:: python
 
    import base64
    project_verifier = base64.b64encode(project_key.public_key_der)
@@ -188,14 +188,14 @@ If you can SSH into your IoT device, you can do the same thing that we did with 
 and copy over the device identity secret key. Since the Neustar TDI and Project verifier keys
 are static for all devices in a Project, we can hard code them in.
 
-.. code-block:: console
+.. code:: console
 
     $ scp /Users/me/secret/device_secret.pem edison@10.1.2.3:/home/root/device_secret.pem
 
 Now that we have the message that was sent to the IoT device, let's check the message's authenticity
 by verifying the digital signatures.
 
-.. code-block:: python
+.. code:: python
 
     from oneid.keychain import Keypair, Credentials
     from oneid.session import DeviceSession
