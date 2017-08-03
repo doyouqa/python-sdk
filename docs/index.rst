@@ -5,6 +5,8 @@
 
 Neustar Trusted Device Identity (TDI)
 =====================================
+Release |release|
+
 Neustar TDI (formerly oneID-connect) is an authentication framework for the Internet of Things (IoT), servers and end-users.
 By sending messages with digital signatures, you can authenticate the origin of the message and
 ensure the message hasn't been tampered with. Neustar TDI makes it simple for projects that need to
