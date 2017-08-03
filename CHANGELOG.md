@@ -1,5 +1,11 @@
+<a name="0.20.0"></a>
+# [0.20.0](https://github.com/Neustar-TDI/python-sdk/compare/0.19.0...0.20.0) (2017-08-03)
+
+* update underlying cryptography.io library version
+
+
 <a name="0.19.0"></a>
-# [](https://github.com/Neustar-TDI/python-sdk/compare/0.18.0...0.19.0) (2017-07-28)
+# [0.19.0](https://github.com/Neustar-TDI/python-sdk/compare/0.18.0...0.19.0) (2017-07-28)
 
 
 ### Bug Fixes
