@@ -372,9 +372,8 @@ class Keypair(BaseKeypair):
         sig_s = int_from_bytes(sig_s_bin, 'big')
 
         sig = encode_dss_signature(sig_r, sig_s)
-        signer = self.public_key.verifier(sig, ec.ECDSA(hashes.SHA256()))
-        signer.update(utils.to_bytes(payload))
-        return signer.verify()
+        self.public_key.verify(sig, utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
+        return True
 
     def sign(self, payload):
         """
@@ -383,10 +382,7 @@ class Keypair(BaseKeypair):
         :param payload: String (usually jwt payload)
         :return: URL safe base64 signature
         """
-        signer = self._private_key.signer(ec.ECDSA(hashes.SHA256()))
-
-        signer.update(utils.to_bytes(payload))
-        signature = signer.finalize()
+        signature = self._private_key.sign(utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
 
         r, s = decode_dss_signature(signature)
 

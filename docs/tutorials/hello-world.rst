@@ -5,7 +5,7 @@ Here is a simple "hello world" message with a digital signature and verified.
 
 Before we can sign or verify any messages, we first need to create a secret key.
 
-.. code-block:: python
+.. code:: python
 
     from oneid import service
     # Directory to save the secret key (should be secure enclave)
@@ -16,7 +16,7 @@ You should now have a secret key pem file that begins with ``-----BEGIN PRIVATE 
 
 Now we can create our "hello world" message and sign it.
 
-.. code-block:: python
+.. code:: python
 
     from oneid.keychain import Keypair
 
@@ -28,7 +28,7 @@ Now we can create our "hello world" message and sign it.
 
 To verify the signature, we need to pass in the message and the signature back into the Keypair.
 
-..  code-block:: python
+..  code:: python
 
     my_key.verify(message, signature)
 
@@ -37,7 +37,7 @@ That's it!
 If you want to see what happens if the message has been tampered with, replace ``hello world`` with
 something else like ``hello universe``.
 
-.. code-block:: python
+.. code:: python
 
     # raises InvalidSignature
     my_key.verify('hello universe', signature)

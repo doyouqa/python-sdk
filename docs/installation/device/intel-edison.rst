@@ -9,35 +9,35 @@ After you've flashed and configured your Intel Edison, we can setup the Intel Ed
 
 * Open the base-feeds config file:
 
-.. code-block:: console
+.. code:: console
 
-    vi /etc/opkg/base-feeds.conf
+    $ vi /etc/opkg/base-feeds.conf
 
 * Add the following repositories:
 
-.. code-block:: console
+.. code:: console
 
-    src/gz all http://repo.opkg.net/edison/repo/all
-    src/gz edison http://repo.opkg.net/edison/repo/edison
-    src/gz core2-32 http://repo.opkg.net/edison/repo/core2-32
+    $ src/gz all http://repo.opkg.net/edison/repo/all
+    $ src/gz edison http://repo.opkg.net/edison/repo/edison
+    $ src/gz core2-32 http://repo.opkg.net/edison/repo/core2-32
 
 * Update opkg:
 
-.. code-block:: console
+.. code:: console
 
-    opkg update
+    $ opkg update
 
 * Install python pip:
 
-.. code-block:: console
+.. code:: console
 
-    opkg install python-pip
+    $ opkg install python-pip
 
 * Install the SDK:
 
-.. code-block:: console
+.. code:: console
 
-    pip install oneid-connect
+    $ pip install oneid-connect
 
 
 
