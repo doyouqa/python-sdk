@@ -17,7 +17,7 @@ Before we begin, you will need ``oneID-cli`` and a `Neustar TDI developer accoun
 
 
 Intro to Neustar TDI's Two-Factor Authentication
-------------------------------------------
+------------------------------------------------
 Two-factor means that there will be two signatures for each message.
 **BOTH** signatures must be verified before reading the message.
 Since there are two signatures that need to be verified on the IoT device,
