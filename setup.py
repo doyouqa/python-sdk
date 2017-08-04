@@ -49,7 +49,7 @@ setup(
     package_data={
         'oneid': ['data/*.yaml'],
     },
-    install_requires=['cryptography>=1.7.1,<1.8', 'PyYAML>=3.11,<4',
+    install_requires=['cryptography>=2.0.2,<2.1', 'PyYAML>=3.11,<4',
                       'requests[security]>=2.9.1,<2.10', 'python-dateutil>=2.4.2,<2.5',
                       'pytz>=2017.2', 'six>=1.10.0,<1.11', 'boto3>=1.4.4,<1.5'],
 )

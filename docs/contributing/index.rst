@@ -13,7 +13,7 @@ Getting Started
 ---------------
 Working on ``Neustar-TDI/python-sdk`` requires additional packages, such as `pytest`_, `mock`_ and `Sphinx`_.
 
-.. code-block:: console
+.. code:: console
 
   $ pip install -r dev_requirements
   $ pip install -e .
@@ -31,14 +31,14 @@ Running Tests
 Unit tests are found in the ``tests/`` directory and are designed to use python's
 ``unittest`` library. ``pytest`` will discover the tests automatically.
 
-.. code-block:: console
+.. code:: console
 
   $ pytest
 
 Cross-version tests require installing additional Python versions, and setting up the local
 ``tox`` environment:
 
-.. code-block:: console
+.. code:: console
 
   $ pyenv install 3.6.1
   $ pyenv install 3.5.1
@@ -52,7 +52,7 @@ Building Documentation
 Documentation is stored in the ``docs/`` directory. It is written
 in `reStructedText`_ and rendered using `Sphinx`_.
 
-.. code-block:: console
+.. code:: console
 
   $ make html
 
@@ -97,7 +97,7 @@ Contributing Changes
 * Our coding style follows `PEP 8`_.
 * In docstrings we use reStructedText as described in `PEP 287`_
 
-.. code-block:: python
+.. code:: python
 
   def foo(bar):
       """
