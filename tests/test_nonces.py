@@ -3,6 +3,7 @@
 from __future__ import unicode_literals
 
 import os
+import uuid
 import tempfile
 import random
 import logging
@@ -287,3 +288,91 @@ class TestBurnWithoutVerify(TestCase):
     def test_just_burning(self):
         nonce = nonces.make_nonce()
         self.assertTrue(nonces.burn_nonce(nonce))
+
+
+class TestContextualNonces(TestCase):
+    def setUp(self):
+        self.contexts = [uuid.uuid4() for _ in range(2)]
+        self.burned_nonces = {}
+
+        def _verify(nonce, context):
+            return nonce not in self.burned_nonces or context not in self.burned_nonces[nonce]
+
+        def _burn(nonce, context):
+            if nonce not in self.burned_nonces:
+                self.burned_nonces[nonce] = {}
+            self.burned_nonces[nonce][context] = True
+            return True
+
+        nonces.set_nonce_handlers(_verify, _burn, True)
+
+    def tearDown(self):
+        nonces.set_nonce_handlers(nonces._default_nonce_verifier, nonces._default_nonce_burner)
+
+    def test_valid_nonce(self):
+        nonce = nonces.make_nonce()
+        logger.debug('nonce=%s', nonce)
+
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.burn_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[0]))
+
+    def test_different_contexts(self):
+        nonce = nonces.make_nonce()
+        logger.debug('nonce=%s', nonce)
+
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+        self.assertTrue(nonces.burn_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+        self.assertTrue(nonces.burn_nonce(nonce, context=self.contexts[1]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+    def test_different_nonces(self):
+        nonce = nonces.make_nonce()
+        nonce2 = nonces.make_nonce()
+        logger.debug('nonce=%s, nonce2=%s', nonce, nonce2)
+
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce2, context=self.contexts[0]))
+
+        self.assertTrue(nonces.burn_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce2, context=self.contexts[0]))
+
+        self.assertTrue(nonces.burn_nonce(nonce2, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce2, context=self.contexts[0]))
+
+
+class TestNonContextualNonces(BaseTestVerifyAndBurnNonce, TestCase):
+    def setUp(self):
+        self.contexts = [uuid.uuid4() for _ in range(2)]
+
+    def test_burn_with_context(self):
+        nonce = nonces.make_nonce()
+        logger.debug('nonce=%s', nonce)
+
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+        self.assertTrue(nonces.burn_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+    def test_burn_without_context(self):
+        nonce = nonces.make_nonce()
+        logger.debug('nonce=%s', nonce)
+
+        self.assertTrue(nonces.verify_nonce(nonce))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertTrue(nonces.verify_nonce(nonce, context=self.contexts[1]))
+
+        self.assertTrue(nonces.burn_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[0]))
+        self.assertFalse(nonces.verify_nonce(nonce, context=self.contexts[1]))
