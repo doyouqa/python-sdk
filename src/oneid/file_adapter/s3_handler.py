@@ -83,7 +83,7 @@ def _bucket_exists(bucket_name):
         return True
     except botocore.exceptions.ClientError as e:
         logger.debug('e.response=%s', e.response)
-        if e.response['Error']['Code'] == 'NoSuchBucket':
+        if e.response['Error']['Code'] == 'NoSuchBucket' or e.response['Error']['Code'] == '404':
             return False
         raise  # pragma: no cover
 

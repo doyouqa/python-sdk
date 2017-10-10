@@ -58,6 +58,9 @@ def make_nonce(expiry=None):
 
 
 def _default_nonce_verifier(nonce):
+    """
+    The default verifier ignores context, so nonces are only valid globally once
+    """
     oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
     nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
 
@@ -84,6 +87,9 @@ _nonce_verifier = _default_nonce_verifier
 
 
 def _default_nonce_burner(nonce):
+    """
+    The default burner ignores context, so nonces are only valid globally once
+    """
     oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
     nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
 
@@ -98,24 +104,29 @@ def _default_nonce_burner(nonce):
 
 _nonce_burner = _default_nonce_burner
 
+_include_context = False
 
-def set_nonce_handlers(nonce_verifier, nonce_burner):
+
+def set_nonce_handlers(nonce_verifier, nonce_burner, include_context=False):
     """
     Sets the functions to verify nonces and record their use.
 
     By default, the nonces are saved in a local file
     named `~/.oneid/used_nonces.txt` (or equivalent)
 
-    :param nonce_burner: function to be called to verify. Passed one argument, the nonce
-    :param nonce_verifier: function to be called to burn. Passed one argument, the nonce
+    :param nonce_burner: function to be called to verify.
+    :param nonce_verifier: function to be called to burn.
+    :param include_context: if True, both the nonce and context will be passed to the functions,
+        otherwise, only the nonce will.
     """
-    global _nonce_burner, _nonce_verifier
+    global _nonce_burner, _nonce_verifier, _include_context
 
     _nonce_verifier = nonce_verifier
     _nonce_burner = nonce_burner
+    _include_context = include_context
 
 
-def verify_nonce(nonce, expiry=None):
+def verify_nonce(nonce, expiry=None, context=None):
     """
     Ensure that the nonce is correct, and not from the future
 
@@ -124,6 +135,8 @@ def verify_nonce(nonce, expiry=None):
 
     :param nonce: Nonce as created with :func:`~oneid.nonces.make_nonce`
     :param expiry: If not None, a `datetime` before which the nonce is not valid
+    :param context: optional data that will be passed to the caller's verifier function
+
     :return: True only if nonce meets validation criteria
     :rtype: bool
     """
@@ -157,8 +170,8 @@ def verify_nonce(nonce, expiry=None):
         logger.debug('nonce is expired: %s', nonce)
         return False
 
-    return _nonce_verifier(nonce)
+    return _nonce_verifier(nonce, context) if _include_context else _nonce_verifier(nonce)
 
 
-def burn_nonce(nonce):
-    return _nonce_burner(nonce)
+def burn_nonce(nonce, context=None):
+    return _nonce_burner(nonce, context) if _include_context else _nonce_burner(nonce)

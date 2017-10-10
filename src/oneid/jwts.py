@@ -106,20 +106,22 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
                      jwt, exc_info=True)
         raise exceptions.InvalidFormatError
 
-    header = _verify_jose_header(
-        utils.to_string(header_json), True, json_decoder)
-    claims = _verify_claims(utils.to_string(claims_json), json_decoder)
+    data_to_sign, signature_b64 = jwt.rsplit('.', 1)
+
+    context = _make_context(keypair, signature_b64)
+
+    header = _verify_jose_header(utils.to_string(header_json), True, json_decoder)
+    claims = _verify_claims(utils.to_string(claims_json), [context], json_decoder)
 
     if keypair:
         try:
-            keypair.verify(*(jwt.rsplit('.', 1)))
+            keypair.verify(data_to_sign, signature_b64)
         except:
-            logger.debug('invalid signature, header=%s, claims=%s',
-                         header, claims, exc_info=True)
+            logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
             raise exceptions.InvalidSignatureError
 
     if 'jti' in claims:
-        nonces.burn_nonce(claims['jti'])
+        nonces.burn_nonce(claims['jti'], context)
 
     return claims
 
@@ -352,15 +354,19 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     if 'payload' not in jws or 'signatures' not in jws:
         raise exceptions.InvalidFormatError
 
-    claims = _verify_claims(utils.to_string(
-        utils.base64url_decode(jws['payload'])), json_decoder)
+    contexts = None
 
     if keypairs:
-        _verify_jws_signatures(jws, keypairs, verify_all,
-                               default_kid, json_decoder)
+        contexts = _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
 
-    if 'jti' in claims:
-        nonces.burn_nonce(claims['jti'])
+    claims = _verify_claims(
+        utils.to_string(utils.base64url_decode(jws['payload'])),
+        contexts, json_decoder
+    )
+
+    if 'jti' in claims and contexts:
+        for context in contexts:
+            nonces.burn_nonce(claims['jti'], context)
 
     return claims
 
@@ -515,7 +521,7 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
     return header
 
 
-def _verify_claims(payload, json_decoder):
+def _verify_claims(payload, contexts, json_decoder):
     try:
         claims = json_decoder(payload)
     except:
@@ -542,9 +548,10 @@ def _verify_claims(payload, json_decoder):
             raise exceptions.InvalidClaimsError
         nbf = datetime.fromtimestamp(nbf_ts, tz.tzutc())
 
-    if 'jti' in claims and not nonces.verify_nonce(claims['jti'], nbf):
-        logger.warning('Invalid nonce: %s', claims['jti'])
-        raise exceptions.InvalidClaimsError
+    if 'jti' in claims and contexts:
+        if not all([nonces.verify_nonce(claims['jti'], nbf, context) for context in contexts]):
+            logger.warning('Invalid nonce: %s (in at least one context)', claims['jti'])
+            raise exceptions.InvalidClaimsError
 
     return claims
 
@@ -579,12 +586,19 @@ def _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
         logger.warning('Not all keys have corresponding signatures, rejecting')
         raise exceptions.KeySignatureMismatch
 
+    contexts = []
+
     for signature in jws['signatures']:
         kid = _get_kid_for_signature(signature, default_kid, json_decoder)
 
         if verify_all or kid in keypair_map:
-            _verify_jws_signature(
-                jws['payload'], keypair_map.get(kid), signature)
+            keypair = keypair_map.get(kid)
+
+            _verify_jws_signature(jws['payload'], keypair, signature)
+
+            contexts.append(_make_context(keypair, signature['signature']))
+
+    return contexts
 
 
 def _get_kid_for_signature(signature, default_kid, json_decoder):
@@ -614,8 +628,14 @@ def _get_signature_header(signature, json_decoder):
 
 def _verify_jws_signature(payload, keypair, signature):
     try:
-        keypair.verify(
-            '.'.join([signature['protected'], payload]), signature['signature'])
+        keypair.verify('.'.join([signature['protected'], payload]), signature['signature'])
     except:
         logger.debug('invalid signature', exc_info=True)
         raise exceptions.InvalidSignatureError
+
+
+def _make_context(keypair, signature_b64):
+    return {
+        'kid': keypair.identity if keypair else None,
+        'signature_b64': signature_b64,
+    }
