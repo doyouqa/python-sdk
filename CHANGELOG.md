@@ -1,3 +1,13 @@
+<a name="0.21.0"></a>
+# [](https://github.com/Neustar-TDI/python-sdk/compare/0.20.0...0.21.0) (2017-10-10)
+
+
+### Features
+
+* **jwts:** verify/burn nonces in kid/sig context ([1838cf3](https://github.com/Neustar-TDI/python-sdk/commit/1838cf3))
+* **nonces:** add context to nonces ([85e9413](https://github.com/Neustar-TDI/python-sdk/commit/85e9413))
+
+
 <a name="0.20.0"></a>
 # [0.20.0](https://github.com/Neustar-TDI/python-sdk/compare/0.19.0...0.20.0) (2017-08-03)
 
