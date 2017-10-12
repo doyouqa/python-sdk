@@ -735,11 +735,11 @@ class TestJWSs(TestCase):
         with self.assertRaises(exceptions.InvalidFormatError):
             jwts.verify_jws(json.dumps(no_sigs), self.keypairs[:2])
 
-    def test_jwt_verify_with_redundant_keypairs(self):
+    def test_jwt_verify_with_same_number_but_incorrect_keypairs(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
 
-        with self.assertRaises(exceptions.InvalidKeyError):
-            jwts.verify_jws(jws, self.keypairs[:1] * 2)
+        with self.assertRaises(exceptions.KeySignatureMismatch):
+            jwts.verify_jws(jws, self.keypairs[-2:])
 
     def test_missing_typ_in_jws_header(self):
         jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
@@ -835,29 +835,37 @@ class TestJWSs(TestCase):
         jws = jwts.make_jws({"a": 1}, self.keypairs[:1])
 
         with self.assertRaises(exceptions.KeySignatureMismatch):
-            jwts.verify_jws(jws, self.keypairs[:2])
+            jwts.verify_jws(jws, self.keypairs[:2], verify_all=True)
 
     def test_jws_verify_too_many_signatures(self):
         jws = jwts.make_jws({"a": 1}, self.keypairs[:2])
 
         with self.assertRaises(exceptions.KeySignatureMismatch):
-            jwts.verify_jws(jws, self.keypairs[:1])
+            jwts.verify_jws(jws, self.keypairs[:1], verify_all=True)
 
     def test_jws_verify_mismatched_signatures(self):
         jws = jwts.make_jws({"a": 1}, self.keypairs[:2])
 
         # this test requires equal-length arrays, with some overlap
         with self.assertRaises(exceptions.KeySignatureMismatch):
-            jwts.verify_jws(jws, self.keypairs[1:3])
+            jwts.verify_jws(jws, self.keypairs[1:3], verify_all=True)
 
         jwts.verify_jws(jws, self.keypairs[1:3], verify_all=False)
+
+    def test_jws_verify_duplicate_valid_signatures_are_ok(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2] * 2)
+
+        jwts.verify_jws(jws, self.keypairs[:2], verify_all=True)
+
+    def test_jws_verify_duplicate_keypairs_are_ok(self):
+        jws = jwts.make_jws({'a': 1}, self.keypairs[:2])
+
+        jwts.verify_jws(jws, self.keypairs[:2] * 2, verify_all=True)
 
     def test_jws_verify_any_signature_is_ok(self):
         jws = jwts.make_jws({'a': 1}, self.keypairs[:1])
 
-        verified_msg = jwts.verify_jws(
-            jws, self.keypairs[:2], verify_all=False)
-        self.assertIn("a", verified_msg)
+        jwts.verify_jws(jws, self.keypairs[:2], verify_all=False)
 
     def test_get_jws_headers(self):
         header = {'z': 99}
