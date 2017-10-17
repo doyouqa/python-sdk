@@ -561,20 +561,13 @@ def _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
         logger.warning('No signatures found, rejecting')
         raise exceptions.InvalidSignatureError
 
-    if verify_all and len(keypairs) != len(jws['signatures']):
-        raise exceptions.KeySignatureMismatch(
-            'number of keys doesn\'t match number of signatures')
-
     keypair_map = {str(keypair.identity): keypair for keypair in keypairs}
+    sig_map = {
+        _get_kid_for_signature(sig, default_kid, json_decoder): True
+        for sig in jws['signatures']
+    }
 
-    if len(keypairs) != len(keypair_map):
-        raise exceptions.InvalidKeyError(
-            'redundant keypairs found, unable to verify')
-
-    found_sigs = [
-        _get_kid_for_signature(sig, default_kid, json_decoder)
-        in keypair_map for sig in jws['signatures']
-    ]
+    found_sigs = [kid in sig_map for kid in keypair_map]
 
     # need at least one signature
     if not any(found_sigs):
@@ -582,7 +575,7 @@ def _verify_jws_signatures(jws, keypairs, verify_all, default_kid, json_decoder)
         raise exceptions.KeySignatureMismatch
 
     # or all
-    if verify_all and not all(found_sigs):
+    if verify_all and sorted(keypair_map.keys()) != sorted(sig_map.keys()):
         logger.warning('Not all keys have corresponding signatures, rejecting')
         raise exceptions.KeySignatureMismatch
 
