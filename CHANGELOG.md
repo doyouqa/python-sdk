@@ -1,3 +1,12 @@
+<a name="0.21.1"></a>
+# [](https://github.com/Neustar-TDI/python-sdk/compare/0.21.0...0.21.1) (2017-10-17)
+
+
+### Bug Fixes
+
+* **jwts:** allow for mult valid sigs from one kid ([5f260e0](https://github.com/Neustar-TDI/python-sdk/commit/5f260e0))
+
+
 <a name="0.21.0"></a>
 # [](https://github.com/Neustar-TDI/python-sdk/compare/0.20.0...0.21.0) (2017-10-10)
 
