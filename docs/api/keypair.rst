@@ -1,19 +1,19 @@
-oneid.keychain
+ntdi.keychain
 ==============
 
 Credentials
 -----------
 
-.. autoclass:: oneid.keychain.Credentials
+.. autoclass:: ntdi.keychain.Credentials
 
 ProjectCredentials
 ------------------
 
-.. autoclass:: oneid.keychain.ProjectCredentials
+.. autoclass:: ntdi.keychain.ProjectCredentials
     :members:
 
 Keypair
 -------
 
-.. autoclass:: oneid.keychain.Keypair
+.. autoclass:: ntdi.keychain.Keypair
     :members:

@@ -101,7 +101,7 @@ def get_jwe_shared_header(jwe, json_decoder=json.loads):
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: header fields and values
     :rtype: dict
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWE
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError`: if not a valid JWE
     """
     jwe_dict = as_dict(jwe, json_decoder)
 

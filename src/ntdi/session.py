@@ -17,20 +17,20 @@ class SessionBase(object):
     """
     Abstract Session Class
 
-    :ivar identity_credentials: TDI identity :class:`~oneid.keychain.Credentials`
-    :ivar project_credentials: unique project credentials :class:`~oneid.keychain.Credentials`
-    :ivar oneid_credentials: TDI project credentials :class:`~oneid.keychain.Credentials`
-    :ivar oneid_credentials: peer credentials :class:`~oneid.keychain.Credentials`
+    :ivar identity_credentials: TDI identity :class:`~ntdi.keychain.Credentials`
+    :ivar project_credentials: unique project credentials :class:`~ntdi.keychain.Credentials`
+    :ivar oneid_credentials: TDI project credentials :class:`~ntdi.keychain.Credentials`
+    :ivar oneid_credentials: peer credentials :class:`~ntdi.keychain.Credentials`
     :ivar config: Dictionary or configuration keyword arguments
     """
     def __init__(self, identity_credentials=None, project_credentials=None,
                  oneid_credentials=None, peer_credentials=None, config=None):
         """
 
-        :param identity_credentials: :py:class:`~oneid.keychain.Credentials`
-        :param project_credentials: :py:class:`~oneid.keychain.ProjectCredentials`
-        :param oneid_credentials: :py:class:`~oneid.keychain.Credentials`
-        :param peer_credentials: list of :py:class:`~oneid.keychain.Credentials`
+        :param identity_credentials: :py:class:`~ntdi.keychain.Credentials`
+        :param project_credentials: :py:class:`~ntdi.keychain.ProjectCredentials`
+        :param oneid_credentials: :py:class:`~ntdi.keychain.Credentials`
+        :param peer_credentials: list of :py:class:`~ntdi.keychain.Credentials`
             If provided, session will be encrypted to recipients
         :param config: Dictionary or configuration keyword arguments
         :return:
@@ -146,7 +146,7 @@ class DeviceSession(SessionBase):
         Verify a message received from the Project
 
         :param message: JSON formatted JWS with at least two signatures
-        :param rekey_credentials: List of :class:`~oneid.keychain.Credential`
+        :param rekey_credentials: List of :class:`~ntdi.keychain.Credential`
         :return: verified message or False if not valid
         """
         standard_keypairs = [
@@ -177,7 +177,7 @@ class DeviceSession(SessionBase):
             encrypt the message to them
         :type encrypt_to_peers: bool
         :param other_recipients: Additional recipients to encrypt to
-        :type other_recipients: list of :class:`~oneid.keychain.Credential`
+        :type other_recipients: list of :class:`~ntdi.keychain.Credential`
         :return: Signed JWS
         """
         claims = kwargs
@@ -261,7 +261,7 @@ class ServerSession(SessionBase):
             encrypt the message to them
         :type encrypt_to_peers: bool
         :param other_recipients: Additional recipients to encrypt to
-        :type other_recipients: list of :class:`~oneid.keychain.Credential`
+        :type other_recipients: list of :class:`~ntdi.keychain.Credential`
         :return: Signed JWS to be sent to devices
         """
         if self.project_credentials is None:
@@ -309,7 +309,7 @@ class ServerSession(SessionBase):
         Verify a message received from/through one or more Devices
 
         :param message: JSON formatted JWS or JWT signed by the Device
-        :param device_credentials: :class:`~oneid.keychain.Credential` (or list of them)
+        :param device_credentials: :class:`~ntdi.keychain.Credential` (or list of them)
             to verify Device signature(s) against
         :param get_oneid_cosignature: (default: True) verify with TDI Core first
         :return: verified message or False if not valid

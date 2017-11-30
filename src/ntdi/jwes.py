@@ -29,8 +29,8 @@ def make_jwe(raw_claims, sender_keypair, recipient_keypairs, jsonify=True, json_
 
     :param raw_claims: payload data that will be converted to json
     :type raw_claims: dict
-    :param recipient_keypairs: :py:class:`~oneid.keychain.Keypair`\s to encrypt the claims for
-    :type recipient_keypairs: list or :py:class:`~oneid.keychain.Keypair`
+    :param recipient_keypairs: :py:class:`~ntdi.keychain.Keypair`\s to encrypt the claims for
+    :type recipient_keypairs: list or :py:class:`~ntdi.keychain.Keypair`
     :param jsonify: If True (default), return JSON, otherwise keep as dict
     :type jsonify: bool
     :param json_encoder: encodes a :py:class:`dict` into JSON. Defaults to `json.dumps`
@@ -79,12 +79,12 @@ def decrypt_jwe(jwe, recipient_keypair, json_decoder=json.loads):
 
     :param jwe: JWE to verify and convert
     :type jwe: str
-    :param recipient_keypair: :py:class:`~oneid.keychain.Keypair` to use to decrypt.
-    :type recipient_keypair: :py:class:`~oneid.keychain.Keypair`
+    :param recipient_keypair: :py:class:`~ntdi.keychain.Keypair` to use to decrypt.
+    :type recipient_keypair: :py:class:`~ntdi.keychain.Keypair`
     :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :returns: claims
     :rtype: dict
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWE
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError`: if not a valid JWE
     """
 
     if not recipient_keypair.identity:

@@ -8,11 +8,11 @@ Neustar TDI's two-factor authentication service enables you to manage all your s
 and IoT devices. If a server or IoT device has been compromised or taken out of
 commission, you can easily revoke it's signing permissions.
 
-Before we begin, you will need ``oneID-cli`` and a `Neustar TDI developer account`_.
+Before we begin, you will need ``ntdi-cli`` and a `Neustar TDI developer account`_.
 
 .. code:: console
 
-   $ pip install oneid-cli
+   $ pip install ntdi-cli
 
 
 
@@ -41,9 +41,9 @@ First we need to configure your terminal.
 
 .. code:: console
 
-   $ oneid-cli configure
+   $ ntdi-cli configure
 
-This will prompt you for your ``ACCESS_KEY``, ``ACCESS_SECRET``, and ``ONEID_KEY``.
+This will prompt you for your ``ACCESS_KEY`` and ``ACCESS_SECRET``.
 You can find all these in your `Neustar TDI developer console`_
 
 
@@ -54,7 +54,7 @@ Let's create a new Project.
 
 .. code:: console
 
-   $ oneid-cli create-project --name "my epic project"
+   $ ntdi-cli create-project --name "my epic project"
 
 This will prompt you to generate the public/private key pair for the Project.
 Answer 'Y' at this step.
@@ -72,7 +72,7 @@ The Neustar TDI verification public key will be given to all your edge devices a
 to verify messages sent from a server.
 
 In the following steps, we will assume a Project ID of "d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9".
-You should substitute the one you get back from `oneid-cli create-project`.
+You should substitute the one you get back from `ntdi-cli create-project`.
 
 
 Server
@@ -86,7 +86,7 @@ Neustar TDI can verify.
 
 .. code:: console
 
-   $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
+   $ ntdi-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
 
 This will generate a new **SECRET** ``.pem`` file.
 
@@ -112,8 +112,8 @@ In Python, we're just going to hardcode the path to these keys for quick access.
     import json
     import logging
 
-    from oneid.keychain import Keypair, Credentials
-    from oneid.session import ServerSession
+    from ntdi.keychain import Keypair, Credentials
+    from ntdi.session import ServerSession
 
     logging.basicConfig(level=logging.WARNING)
 
@@ -168,7 +168,7 @@ Just like we did with the server, we need to provision our IoT device.
 
 .. code:: console
 
-    $ oneid-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
+    $ ntdi-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
 
 
 Now we need to copy over the Neustar TDI verifier key, Project verifier key and the
@@ -197,8 +197,8 @@ by verifying the digital signatures.
 
 .. code:: python
 
-    from oneid.keychain import Keypair, Credentials
-    from oneid.session import DeviceSession
+    from ntdi.keychain import Keypair, Credentials
+    from ntdi.session import DeviceSession
 
     oneid_public_key_path = './oneid-pub.pem'
     oneid_keypair = Keypair.from_public_pem(path=oneid_public_key_path)

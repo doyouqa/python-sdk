@@ -14,4 +14,4 @@ You should now be able to install the SDK with the usual
 
 .. code:: console
 
-    $ pip install oneid-connect
+    $ pip install ntdi

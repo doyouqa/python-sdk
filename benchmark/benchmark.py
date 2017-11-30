@@ -9,13 +9,13 @@ from contextlib import contextmanager
 
 import logging
 
-import oneid
+import ntdi
 
 logger = logging.getLogger('__undefined__')
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run specific benchmark for oneID-connect library')
+    parser = argparse.ArgumentParser(description='Run specific benchmark for NTDI library')
     parser.add_argument('-d', '--debug',
                         choices=['NONE', 'INFO', 'DEBUG', 'WARNING', 'ERROR'],
                         default='NONE',
@@ -59,7 +59,7 @@ def main():
     args = parser.parse_args()
 
     set_logging_level(args.debug)
-    logger = logging.getLogger('oneID-connect/benchmark')
+    logger = logging.getLogger('ntdi/benchmark')
 
     logger.debug('args=%s', args)
 
@@ -101,23 +101,23 @@ def run_aes_keys_tasks(count):
 
     with operations_timer(count, 'AES keys'):
         for _ in range(count):
-            oneid.service.create_aes_key()
+            ntdi.service.create_aes_key()
 
 
 def run_symmetric_tasks(data_size, count):
     print('Encrypting/Decrypting {} {}-byte random message(s)'.format(count, data_size))
 
-    key = oneid.service.create_aes_key()
+    key = ntdi.service.create_aes_key()
     data = os.urandom(data_size)
-    edata = oneid.service.encrypt_attr_value(data, key)
+    edata = ntdi.service.encrypt_attr_value(data, key)
 
     with operations_timer(count, 'encryptions'):
         for _ in range(count):
-            oneid.service.encrypt_attr_value(data, key)
+            ntdi.service.encrypt_attr_value(data, key)
 
     with operations_timer(count, 'decryptions'):
         for _ in range(count):
-            oneid.service.decrypt_attr_value(edata, key)
+            ntdi.service.decrypt_attr_value(edata, key)
 
 
 def run_ecdsa_key_tasks(count):
@@ -125,13 +125,13 @@ def run_ecdsa_key_tasks(count):
 
     with operations_timer(count, 'ECDSA keys'):
         for _ in range(count):
-            oneid.service.create_secret_key()
+            ntdi.service.create_secret_key()
 
 
 def run_asymmetric_tasks(data_size, count):
     print('Signing/Verifying {:,d} {:,d}-byte random messages'.format(count, data_size))
 
-    keypair = oneid.service.create_secret_key()
+    keypair = ntdi.service.create_secret_key()
     data = os.urandom(data_size)
     sig = keypair.sign(data)
 
@@ -148,17 +148,17 @@ def run_asymmetric_tasks(data_size, count):
 def run_jwt_tasks(data_size, count):
     print('Creating/Verifying {:,d} JWTs with {:,d}-byte random payloads'.format(count, data_size))
 
-    keypair = oneid.service.create_secret_key()
+    keypair = ntdi.service.create_secret_key()
     data = {'d': base64.b64encode(os.urandom(data_size)).decode('utf-8')[:data_size]}
-    jwt = oneid.jwts.make_jwt(data, keypair)
+    jwt = ntdi.jwts.make_jwt(data, keypair)
 
     with operations_timer(count, 'creates'):
         for _ in range(count):
-            oneid.jwts.make_jwt(data, keypair)
+            ntdi.jwts.make_jwt(data, keypair)
 
     with operations_timer(count, 'verifies'):
         for _ in range(count):
-            if not oneid.jwts.verify_jwt(jwt, keypair):
+            if not ntdi.jwts.verify_jwt(jwt, keypair):
                 raise RuntimeError('error verifying jwt')
 
 

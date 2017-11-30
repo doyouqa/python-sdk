@@ -13,7 +13,7 @@ from dateutil import tz
 
 from unittest import TestCase
 
-from oneid import nonces
+from ntdi import nonces
 
 logger = logging.getLogger(__name__)
 

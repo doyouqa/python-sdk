@@ -11,7 +11,7 @@ import unittest
 
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 
-from oneid import keychain, service, utils, exceptions
+from ntdi import keychain, service, utils, exceptions
 
 logger = logging.getLogger(__name__)
 

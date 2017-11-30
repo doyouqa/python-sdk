@@ -8,8 +8,8 @@ import logging
 
 from unittest import TestCase
 
-from oneid import utils
-from oneid.file_adapter import plain_file_handler
+from ntdi import utils
+from ntdi.file_adapter import plain_file_handler
 
 logger = logging.getLogger(__name__)
 

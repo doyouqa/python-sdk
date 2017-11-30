@@ -10,8 +10,8 @@ import boto3
 from unittest import TestCase
 from moto import mock_s3
 
-from oneid import utils
-from oneid.file_adapter import s3_handler
+from ntdi import utils
+from ntdi.file_adapter import s3_handler
 
 logger = logging.getLogger(__name__)
 

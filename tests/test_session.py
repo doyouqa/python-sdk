@@ -6,7 +6,7 @@ import mock
 
 from cryptography.exceptions import InvalidSignature
 
-from oneid import session, service, keychain, jose, jwts, jwes, nonces, exceptions
+from ntdi import session, service, keychain, jose, jwts, jwes, nonces, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def mock_request(http_method, url, headers=None, data=None):
     :param url: url that will be overridden
     :param headers: Dictionary of additional header params
     :param data: Body/payload
-    :return: :class:`~oneid.test_session.MockResponse`
+    :return: :class:`~ntdi.test_session.MockResponse`
     """
     if url == 'https://myservice/my/endpoint':
         if http_method.lower() == 'post':
@@ -132,7 +132,7 @@ class TestBaseSession(unittest.TestCase):
         self.assertRaises(TypeError, base.make_http_request,
                           "UNKOWN", "http://localhost:8080")
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_authentication_error(self, mock_request):
         base = session.SessionBase()
         self.assertRaises(exceptions.InvalidAuthentication,
@@ -455,7 +455,7 @@ class TestServerSession(unittest.TestCase):
 
         self.assertTrue(hasattr(sess, "test_service"))
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_service_request(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
@@ -465,7 +465,7 @@ class TestServerSession(unittest.TestCase):
         test_method = sess.test_service.test_method()
         self.assertEqual(test_method, "tested")
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_prepare_message(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
@@ -488,7 +488,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn('a', verified)
         self.assertIn('b', verified)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_prepare_message_encrypted_session(self, mock_request):
         peer_credentials = self.alt_credentials
         sess = session.ServerSession(
@@ -516,7 +516,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn('a', claims)
         self.assertIn('b', claims)
 
-    @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_failed_cosign_request)
     def test_prepare_message_failed_cosign(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
@@ -537,7 +537,7 @@ class TestServerSession(unittest.TestCase):
         with self.assertRaises(AttributeError):
             sess.prepare_message()
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_reset_keys(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
@@ -566,7 +566,7 @@ class TestServerSession(unittest.TestCase):
         verified = jwts.verify_jws(authenticated_data, keypairs)
         self.assertIsInstance(verified, dict)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_jwt(self, mock_request):
         message = jwts.make_jwt(
             {'c': 3},
@@ -583,7 +583,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_jws(self, mock_request):
         message = jwts.make_jws(
             {'c': 3},
@@ -600,7 +600,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_jws_with_routing(self, mock_request):
         message = jwts.make_jws(
             {'c': 3},
@@ -617,7 +617,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_from_device_key_only(self, mock_request):
         message = jwts.make_jwt(
             {'c': 3},
@@ -636,7 +636,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_project_jwe(self, mock_request):
         jwe = jwes.make_jwe(
             {'c': 3},
@@ -656,7 +656,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_project_server_jwe(self, mock_request):
         jwe = jwes.make_jwe(
             {'c': 3},
@@ -676,7 +676,7 @@ class TestServerSession(unittest.TestCase):
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_verify_message_no_device_creds(self, mock_request):
         message = jwts.make_jwt(
             {'c': 3},
@@ -691,7 +691,7 @@ class TestServerSession(unittest.TestCase):
         with self.assertRaises(AttributeError):
             sess.verify_message(message, None)
 
-    @mock.patch('oneid.session.request', side_effect=mock_failed_cosign_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_failed_cosign_request)
     def test_verify_message_failed_cosign(self, mock_request):
         message = jwts.make_jwt(
             {'c': 3},
@@ -789,7 +789,7 @@ class TestAdminSession(unittest.TestCase):
                                     config=self.custom_config)
         self.assertRaises(TypeError, sess.test_service.test_method)
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_admin_session_service_request(self, mock_request):
         sess = session.AdminSession(self.credentials,
                                     config=self.custom_config)

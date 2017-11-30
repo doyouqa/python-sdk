@@ -1,6 +1,6 @@
-oneid.exceptions
+ntdi.exceptions
 ================
 
-.. automodule:: oneid.exceptions
+.. automodule:: ntdi.exceptions
    :members:
    :undoc-members:

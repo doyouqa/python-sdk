@@ -45,7 +45,13 @@ class ServiceCreator(object):
         :param service_model:
         :return: Dictionary of class attributes
         """
-        base_url = os.environ.get('ONEID_API_SERVER_BASE_URL', kwargs.get('base_url', ''))
+        base_url = os.environ.get(
+            'NTDI_CORE_SERVER_BASE_URL',
+            os.environ.get(
+                'ONEID_API_SERVER_BASE_URL',
+                kwargs.get('base_url', '')
+            )
+        )
 
         methods = dict()
         for method_name, method_values in service_model.items():
@@ -113,7 +119,7 @@ class BaseService(object):
         """
         Create a new Service
 
-        :param session: :class:`oneid.session.Session` instance
+        :param session: :class:`ntdi.session.Session` instance
         """
         self.session = session
 
@@ -177,7 +183,7 @@ def create_secret_key(output=None):
     Create a secret key and save it to a secure location
 
     :param output: Path to save the secret key
-    :return: oneid.keychain.Keypair
+    :return: ntdi.keychain.Keypair
     """
     secret_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
     secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())

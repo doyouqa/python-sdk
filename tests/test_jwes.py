@@ -11,7 +11,7 @@ import logging
 
 from unittest import TestCase
 
-from oneid import jwes, nonces, service, exceptions, utils
+from ntdi import jwes, nonces, service, exceptions, utils
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ Before we can sign or verify any messages, we first need to create a secret key.
 
 .. code:: python
 
-    from oneid import service
+    from ntdi import service
     # Directory to save the secret key (should be secure enclave)
     secret_key_pem_path = '/Users/me/my_secret_key.pem'
     service.create_secret_key(output=secret_key_pem_path)
@@ -18,7 +18,7 @@ Now we can create our "hello world" message and sign it.
 
 .. code:: python
 
-    from oneid.keychain import Keypair
+    from ntdi.keychain import Keypair
 
     message = 'hello world'
 

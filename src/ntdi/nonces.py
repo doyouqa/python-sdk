@@ -133,7 +133,7 @@ def verify_nonce(nonce, expiry=None, context=None):
     Callers should also store used nonces and reject messages
     with previously-used ones.
 
-    :param nonce: Nonce as created with :func:`~oneid.nonces.make_nonce`
+    :param nonce: Nonce as created with :func:`~ntdi.nonces.make_nonce`
     :param expiry: If not None, a `datetime` before which the nonce is not valid
     :param context: optional data that will be passed to the caller's verifier function
 

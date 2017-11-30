@@ -5,7 +5,7 @@ You only need one step:
 
 .. code:: console
 
-    $ pip install oneid-connect
+    $ pip install ntdi
 
 If you're using an older version of OS X or want to link to a specific version
 of openSSL you will need a C compiler, development headers and possibly

@@ -9,7 +9,7 @@ src_dir = os.path.join(base_dir, "src")
 
 
 about = {}
-with open(os.path.join(src_dir, "oneid", "__about__.py"), encoding='utf-8') as f:
+with open(os.path.join(src_dir, "ntdi", "__about__.py"), encoding='utf-8') as f:
     exec(f.read(), about)
 
 with open(os.path.join(base_dir, "README.rst"), encoding='utf-8') as f:
@@ -47,7 +47,7 @@ setup(
                                     'venv', 'example*', '*egg-info',
                                     '.gitignore']),
     package_data={
-        'oneid': ['data/*.yaml'],
+        'ntdi': ['data/*.yaml'],
     },
     install_requires=['cryptography>=2.0.2,<2.1', 'PyYAML>=3.11,<4',
                       'requests[security]>=2.18.4,<2.19', 'python-dateutil>=2.6.1,<2.7',

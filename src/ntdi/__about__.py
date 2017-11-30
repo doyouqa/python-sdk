@@ -4,12 +4,12 @@ __all__ = [
     "__email__", "__license__", "__copyright__",
 ]
 
-__title__ = "oneID-connect"
+__title__ = "ntdi"
 __summary__ = ("Neustar TDI is an identity & authentication "
                "framework for the Internet of Things (IoT) "
                "devices, servers, and end-users.")
 
-__uri__ = "https://github.com/OneID/oneID-connect-python"
+__uri__ = "https://github.com/Neustar-TDI/python-sdk"
 
 __version__ = "0.22.0"
 

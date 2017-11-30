@@ -10,7 +10,7 @@ from dateutil import tz
 
 from unittest import TestCase
 
-from oneid import utils
+from ntdi import utils
 
 logger = logging.getLogger(__name__)
 

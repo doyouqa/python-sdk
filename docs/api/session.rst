@@ -1,26 +1,26 @@
-oneid.session
+ntdi.session
 ==============
 
 SessionBase
 -----------
 
-.. autoclass:: oneid.session.SessionBase
+.. autoclass:: ntdi.session.SessionBase
 
 DeviceSession
 -------------
 
-.. autoclass:: oneid.session.DeviceSession
+.. autoclass:: ntdi.session.DeviceSession
     :members:
 
 ServerSession
 -------------
 
-.. autoclass:: oneid.session.ServerSession
+.. autoclass:: ntdi.session.ServerSession
     :members:
 
 
 AdminSession
 ------------
-.. autoclass:: oneid.session.AdminSession
+.. autoclass:: ntdi.session.AdminSession
    :members:
 

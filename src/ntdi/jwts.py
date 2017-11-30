@@ -50,7 +50,7 @@ def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
 
     :param raw_claims: payload data that will be converted to json
     :type raw_claims: dict
-    :param keypair: :py:class:`~oneid.keychain.Keypair` to sign the request
+    :param keypair: :py:class:`~ntdi.keychain.Keypair` to sign the request
     :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
     :return: JWT
     """
@@ -77,20 +77,20 @@ def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
 
 def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     """
-    Convert a JWT back to it's claims, if validated by the :py:class:`~oneid.keychain.Keypair`
+    Convert a JWT back to it's claims, if validated by the :py:class:`~ntdi.keychain.Keypair`
 
     :param jwt: JWT to verify and convert
     :type jwt: str or bytes
-    :param keypair: :py:class:`~oneid.keychain.Keypair` to verify the JWT
-    :type keypair: :py:class:`~oneid.keychain.Keypair`
+    :param keypair: :py:class:`~ntdi.keychain.Keypair` to verify the JWT
+    :type keypair: :py:class:`~ntdi.keychain.Keypair`
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: claims
     :rtype: dict
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError` if not a valid JWT
-    :raises: :py:class:`~oneid.exceptions.InvalidAlgorithmError` if unsupported algorithm specified
-    :raises: :py:class:`~oneid.exceptions.InvalidClaimsError` if missing or invalid claims,
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError` if not a valid JWT
+    :raises: :py:class:`~ntdi.exceptions.InvalidAlgorithmError` if unsupported algorithm specified
+    :raises: :py:class:`~ntdi.exceptions.InvalidClaimsError` if missing or invalid claims,
         including expiration, re-used nonce, etc.
-    :raises: :py:class:`~oneid.exceptions.InvalidSignatureError` if signature is not valid
+    :raises: :py:class:`~ntdi.exceptions.InvalidSignatureError` if signature is not valid
     """
     jwt = utils.to_string(jwt)
 
@@ -133,7 +133,7 @@ def make_jws(raw_claims, ordered_keypairs, multiple_sig_headers=None, json_encod
     :param raw_claims: payload data that will be converted to json
     :type raw_claims: dict
     :param ordered_keypairs:
-        :py:class:`~oneid.keychain.Keypair`\s to sign the request with (in signing order,
+        :py:class:`~ntdi.keychain.Keypair`\s to sign the request with (in signing order,
         with ordered_keypairs[0] the first the sign the JWS)
     :type ordered_keypairs: list
     :param json_encoder: a function to encode a :py:class:`dict` into JSON. Defaults to `json.dumps`
@@ -172,7 +172,7 @@ def extend_jws_signatures(
     :param jws: existing JWS (Compact or JSON) or JWT
     :type jws: str
     :param ordered_keypairs:
-        :py:class:`~oneid.keychain.Keypair`\s to sign the request with (in signing order,
+        :py:class:`~ntdi.keychain.Keypair`\s to sign the request with (in signing order,
         with ordered_keypairs[0] the first the sign the JWS)
     :type ordered_keypairs: list
     :param default_jwt_kid: (optional) value for 'kid' header field if passing a JWT without one
@@ -259,7 +259,7 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
     :param ordered:
         Bool if the key IDs should be returned in the order they signed the JWS.
         If this cannot be resolved, an exception is thrown.
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError`: if not a valid JWS
     """
 
     jws = utils.to_string(jws)
@@ -308,11 +308,11 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
 def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decoder=json.loads):
     """
     Convert a JWS back to it's claims, if validated by a set of
-    required :py:class:`~oneid.keychain.Keypair`\s
+    required :py:class:`~ntdi.keychain.Keypair`\s
 
     :param jws: JWS to verify and convert
     :type jws: str or bytes
-    :param keypairs: :py:class:`~oneid.keychain.Keypair`\s to verify the JWS with.
+    :param keypairs: :py:class:`~ntdi.keychain.Keypair`\s to verify the JWS with.
                     Must include one for each specified in the JWS headers' `kid` values.
     :type keypairs: list
     :param verify_all: If True (default), all keypairs must validate a signature.
@@ -327,11 +327,11 @@ def verify_jws(jws, keypairs=None, verify_all=True, default_kid=None, json_decod
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: claims
     :rtype: dict
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
-    :raises: :py:class:`~oneid.exceptions.InvalidAlgorithmError`: if unsupported algorithm specified
-    :raises: :py:class:`~oneid.exceptions.InvalidClaimsError`: if missing or invalid claims,
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError`: if not a valid JWS
+    :raises: :py:class:`~ntdi.exceptions.InvalidAlgorithmError`: if unsupported algorithm specified
+    :raises: :py:class:`~ntdi.exceptions.InvalidClaimsError`: if missing or invalid claims,
         including expiration, re-used nonce, etc.
-    :raises: :py:class:`~oneid.exceptions.InvalidSignatureError`: if any relevant signature
+    :raises: :py:class:`~ntdi.exceptions.InvalidSignatureError`: if any relevant signature
         is not valid
     """
 
@@ -380,7 +380,7 @@ def get_jws_headers(jws, json_decoder=json.loads):
     :param json_decoder: a function to decode JSON into a :py:class:`dict`. Defaults to `json.loads`
     :returns: headers
     :rtype: list
-    :raises: :py:class:`~oneid.exceptions.InvalidFormatError`: if not a valid JWS
+    :raises: :py:class:`~ntdi.exceptions.InvalidFormatError`: if not a valid JWS
     """
     jws = utils.to_string(jws)
     try:

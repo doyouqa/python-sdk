@@ -37,7 +37,7 @@ After you've flashed and configured your Intel Edison, we can setup the Intel Ed
 
 .. code:: console
 
-    $ pip install oneid-connect
+    $ pip install ntdi
 
 
 

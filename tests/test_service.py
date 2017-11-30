@@ -8,7 +8,7 @@ import logging
 import unittest
 import mock
 
-from oneid import service, session, keychain, utils
+from ntdi import service, session, keychain, utils
 
 # TODO: this is starting to look like a fixture
 from .test_session import TestSession, mock_request
@@ -70,24 +70,24 @@ class TestServiceCreator(unittest.TestCase):
         self.assertEqual(svc.__class__.__name__, "svc")
         self.assertTrue(hasattr(svc, "test_method"))
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_call_created_method(self, mock_request):
         test_method = self.service.test_method(in_jwt="a",
                                                in_url="b",
                                                optional=None)
         self.assertEqual(test_method, "tested")
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_call_created_method_with_body(self, mock_request):
         test_method = self.service.test_method(body="hello", in_url='something')
         self.assertEqual(test_method, "tested")
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_call_created_method_missing_args(self, mock_request):
         with self.assertRaises(TypeError):
             self.service.test_method()
 
-    @mock.patch('oneid.session.request', side_effect=mock_request)
+    @mock.patch('ntdi.session.request', side_effect=mock_request)
     def test_call_created_method_with_body_missing_url_param(self, mock_request):
         with self.assertRaises(TypeError):
             self.service.test_method(body="hello")

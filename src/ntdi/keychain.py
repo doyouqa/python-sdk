@@ -38,18 +38,18 @@ class Credentials(object):
 
 
     :ivar identity: UUID of the identity.
-    :ivar keypair: :class:`~oneid.keychain.BaseKeypair` instance.
+    :ivar keypair: :class:`~ntdi.keychain.BaseKeypair` instance.
     """
     def __init__(self, identity, keypair):
         """
 
         :param identity: uuid of the entity
-        :param keypair: :py:class:`~oneid.keychain.BaseKeypair` instance
+        :param keypair: :py:class:`~ntdi.keychain.BaseKeypair` instance
         """
         self.id = identity
 
         if not isinstance(keypair, BaseKeypair):
-            raise ValueError('keypair must be a oneid.keychain.BaseKeypair instance')
+            raise ValueError('keypair must be a ntdi.keychain.BaseKeypair instance')
 
         self.keypair = keypair
 
@@ -60,7 +60,7 @@ class ProjectCredentials(Credentials):
         Adds an encryption key
 
         :param project_id: oneID project UUID
-        :param keypair: :py:class:`~oneid.keychain.BaseKeypair`
+        :param keypair: :py:class:`~ntdi.keychain.BaseKeypair`
         :param encryption_key: AES key used to encrypt messages
         """
         super(ProjectCredentials, self).__init__(project_id, keypair)
@@ -88,10 +88,10 @@ class ProjectCredentials(Credentials):
 
 class BaseKeypair(object):
     """
-    Generic :py:class:`~oneid.keychain.Keypair` functionality.
+    Generic :py:class:`~ntdi.keychain.Keypair` functionality.
 
     Callers can subclass this to mimic or proxy
-    :py:class:`~oneid.keychain.Keypair`\s
+    :py:class:`~ntdi.keychain.Keypair`\s
     """
     PUBLIC_KEY_USE_SIGNING = 'sig'
     PUBLIC_KEY_USE_ENCRYPTION = 'enc'
@@ -219,9 +219,9 @@ class Keypair(BaseKeypair):
     @classmethod
     def from_secret_pem(cls, key_bytes=None, path=None):
         """
-        Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted private ECDSA key
+        Create a :class:`~ntdi.keychain.Keypair` from a PEM-formatted private ECDSA key
 
-        :return: :class:`~oneid.keychain.Keypair` instance
+        :return: :class:`~ntdi.keychain.Keypair` instance
         """
         if key_bytes:
             secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, _BACKEND)
@@ -235,11 +235,11 @@ class Keypair(BaseKeypair):
     @classmethod
     def from_public_pem(cls, key_bytes=None, path=None):
         """
-        Create a :class:`~oneid.keychain.Keypair` from a PEM-formatted public ECDSA key
+        Create a :class:`~ntdi.keychain.Keypair` from a PEM-formatted public ECDSA key
 
         Note that this keypair will not be capable of signing, only verifying.
 
-        :return: :class:`~oneid.keychain.Keypair` instance
+        :return: :class:`~ntdi.keychain.Keypair` instance
         """
         ret = None
         public_bytes = None
@@ -274,7 +274,7 @@ class Keypair(BaseKeypair):
         validate signatures
 
         :param public_key: der formatted key
-        :return: :class:`~oneid.keychain.Keypair` instance
+        :return: :class:`~ntdi.keychain.Keypair` instance
         """
         pub = load_der_public_key(public_key, _BACKEND)
 
@@ -286,10 +286,10 @@ class Keypair(BaseKeypair):
     @classmethod
     def from_jwk(cls, jwk):
         """
-        Create a :py:class:`~oneid.keychain.Keypair` from a JWK
+        Create a :py:class:`~ntdi.keychain.Keypair` from a JWK
 
         :param jwk: oneID-standard JWK
-        :return: :py:class:`~oneid.keychain.Keypair` instance
+        :return: :py:class:`~ntdi.keychain.Keypair` instance
         :raises InvalidFormatError: if not a valid JWK
         """
         if jwk['kty'] != 'EC' or jwk['crv'] != 'P-256':
@@ -414,7 +414,7 @@ class Keypair(BaseKeypair):
         Derive a shared symmetric key for encrypting data to a given recipient
 
         :param peer_keypair: Public key of the recipient
-        :type peer_keypair: :py:class:`~oneid.keychain.Keypair`
+        :type peer_keypair: :py:class:`~ntdi.keychain.Keypair`
         :param algorithm: The algorithm associated with the operation (defaults to 'A256GCM')
         :type algorithm: str
         :param party_u_info: shared identifying information about the sender (optional)

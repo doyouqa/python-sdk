@@ -7,7 +7,7 @@ import logging
 from unittest import TestCase
 import mock
 
-from oneid import file_adapter
+from ntdi import file_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ _mock_implementation = mock.Mock(
 )
 
 
-@mock.patch('oneid.file_adapter._get_handler', return_value=_mock_implementation)
+@mock.patch('ntdi.file_adapter._get_handler', return_value=_mock_implementation)
 class TestFileAdapter(TestCase):
     def setUp(self):
         pass

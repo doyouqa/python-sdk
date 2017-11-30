@@ -1,5 +1,5 @@
-oneid.jose
+ntdi.jose
 ==========
 
-.. automodule:: oneid.jose
+.. automodule:: ntdi.jose
     :members:
