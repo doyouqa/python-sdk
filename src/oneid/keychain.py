@@ -93,8 +93,12 @@ class BaseKeypair(object):
     Callers can subclass this to mimic or proxy
     :py:class:`~oneid.keychain.Keypair`\s
     """
-    def __init__(self, *args, **kwargs):
-        self.identity = kwargs.get('identity')
+    PUBLIC_KEY_USE_SIGNING = 'sig'
+    PUBLIC_KEY_USE_ENCRYPTION = 'enc'
+
+    def __init__(self, identity=None, use=PUBLIC_KEY_USE_SIGNING, **kwargs):
+        self.identity = identity
+        self.use = use
 
     @property
     def public_key_der(self):
@@ -347,7 +351,9 @@ class Keypair(BaseKeypair):
         public_numbers = self.public_key.public_numbers()
         ret = {
           "kty": "EC",
+          "alg": "ES256",
           "crv": "P-256",
+          "use": self.use,
           "x": utils.to_string(utils.base64url_encode(int_to_bytes(public_numbers.x))),
           "y": utils.to_string(utils.base64url_encode(int_to_bytes(public_numbers.y))),
         }
