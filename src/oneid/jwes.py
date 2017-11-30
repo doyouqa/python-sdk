@@ -117,7 +117,7 @@ def decrypt_jwe(jwe, recipient_keypair, json_decoder=json.loads):
 
     try:
         cek = service.key_unwrap(kek, e_cek)
-    except:
+    except:  # noqa: E722
         logger.warning('invalid attempt to decrypt CEK, id=%s', recipient_keypair.identity)
         raise exceptions.DecryptionFailed
 
@@ -133,7 +133,7 @@ def decrypt_jwe(jwe, recipient_keypair, json_decoder=json.loads):
 
     try:
         claims = service.decrypt_attr_value(attr_value, cek)
-    except:
+    except:  # noqa: E722
         logger.warning('invalid attempt to decrypt claims, id=%s', recipient_keypair.identity)
         raise exceptions.DecryptionFailed
 

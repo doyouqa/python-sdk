@@ -15,15 +15,13 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PrivateFormat, NoEncryption
 
-from .keychain import Keypair
+from . import keychain
 from . import jwts
 from . import file_adapter
 from . import symcrypt
 
 logger = logging.getLogger(__name__)
 
-
-AUTHENTICATION_ENDPOINT = 'http://developer-portal.oneid.com/api/{project}/authenticate'
 
 _BACKEND = default_backend()
 
@@ -188,7 +186,7 @@ def create_secret_key(output=None):
     if output and file_adapter.file_directory_exists(output):
         file_adapter.write_file(output, secret_key_bytes)
 
-    return Keypair.from_secret_pem(key_bytes=secret_key_bytes)
+    return keychain.Keypair.from_secret_pem(key_bytes=secret_key_bytes)
 
 
 def create_aes_key():

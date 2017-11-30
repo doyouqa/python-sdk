@@ -41,7 +41,7 @@ class TestS3Handler(TestCase):
                 self.object.delete()
             if self.bucket:
                 self.bucket.delete()
-        except:
+        except:  # noqa: E722
             # logger.debug('error deleting objects/bucket', exc_info=True)
             pass
 

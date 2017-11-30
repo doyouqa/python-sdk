@@ -160,7 +160,7 @@ def normalize_claims(raw_claims, issuer=None):
         # use >v1 nonce expiration for message expiration
         try:
             exp = utils.to_timestamp(nonce[3:-6])
-        except:
+        except:  # noqa: E722
             logger.warning('unable to parse jti for nonce exp, using default, jti=%s', nonce)
 
     now = int(time.time())

@@ -104,6 +104,13 @@ class TestKeypair(unittest.TestCase):
     BASE_PATH = os.path.dirname(__file__)
     x509_PATH = os.path.join(BASE_PATH, 'x509')
 
+    def test_is_secret(self):
+        keypair = service.create_secret_key()
+        self.assertTrue(keypair.is_secret)
+
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+        self.assertFalse(public_keypair.is_secret)
+
     def test_load_pem_path(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
         keypair = keychain.Keypair.from_secret_pem(path=pem_path)
@@ -169,12 +176,26 @@ class TestKeypair(unittest.TestCase):
             token = keychain.Keypair.from_secret_pem(key_bytes=pem_bytes)
             self.assertEqual(token.secret_as_pem, pem_bytes)
 
+    def test_export_secret_pem_from_public(self):
+        keypair = service.create_secret_key()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.secret_as_pem
+
     def test_export_der(self):
         der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
         with open(der_path, 'rb') as f:
             der_bytes = f.read()
             token = keychain.Keypair.from_secret_der(der_bytes)
             self.assertEqual(token.secret_as_der, der_bytes)
+
+    def test_export_secret_der_from_public(self):
+        keypair = service.create_secret_key()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.secret_as_der
 
     def test_sign_verify(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
@@ -183,6 +204,13 @@ class TestKeypair(unittest.TestCase):
             token = keychain.Keypair.from_secret_pem(key_bytes=pem_bytes)
             signature = token.sign(b'MESSAGE')
             self.assertTrue(token.verify(b"MESSAGE", signature))
+
+    def test_sign_with_public(self):
+        keypair = service.create_secret_key()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.sign(b'anything')
 
     def test_public_key(self):
         pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')

@@ -183,12 +183,18 @@ class Keypair(BaseKeypair):
         self._private_key = secret_bytes
 
     @property
+    def is_secret(self):
+        return self._private_key is not None
+
+    @property
     def secret_as_der(self):
         """
         Write out the private key as a DER format
 
         :return: DER encoded private key
         """
+        if not self.is_secret:
+            raise exceptions.InvalidFormatError
         secret_der = self._private_key.private_bytes(
             Encoding.DER, PrivateFormat.PKCS8, NoEncryption()
         )
@@ -202,6 +208,8 @@ class Keypair(BaseKeypair):
 
         :return: Pem Encoded private key
         """
+        if not self.is_secret:
+            raise exceptions.InvalidFormatError
         return self._private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
     @classmethod
@@ -249,7 +257,7 @@ class Keypair(BaseKeypair):
         """
         Read a der_key, convert it a private key
 
-        :param path: der formatted key
+        :param der_key: der formatted key
         :return:
         """
         secret_bytes = load_der_private_key(der_key, None, _BACKEND)
@@ -331,7 +339,7 @@ class Keypair(BaseKeypair):
         :return: oneID-standard JWK
         :raises InvalidFormatError: if not a private key
         """
-        if not self._private_key:
+        if not self.is_secret:
             raise exceptions.InvalidFormatError
         return self.get_jwk(True)
 
@@ -347,7 +355,7 @@ class Keypair(BaseKeypair):
         if self.identity:
             ret['kid'] = str(self.identity)
 
-        if self._private_key and include_secret:
+        if self.is_secret and include_secret:
             private_numbers = self._private_key.private_numbers()
             d = int_to_bytes(private_numbers.private_value)
             ret['d'] = utils.to_string(utils.base64url_encode(d))
@@ -382,6 +390,9 @@ class Keypair(BaseKeypair):
         :param payload: String (usually jwt payload)
         :return: URL safe base64 signature
         """
+        if not self.is_secret:
+            raise exceptions.InvalidFormatError
+
         signature = self._private_key.sign(utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
 
         r, s = decode_dss_signature(signature)
@@ -408,7 +419,7 @@ class Keypair(BaseKeypair):
         :return_type: bytes
         :raises InvalidFormatError: if self is not a private key
         """
-        if not self._private_key:
+        if not self.is_secret:
             raise exceptions.InvalidFormatError
         raw_key = self._raw_ecdh(peer_keypair)
         otherinfo = self._calc_otherinfo(algorithm, party_u_info, party_v_info)

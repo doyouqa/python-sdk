@@ -101,7 +101,7 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     try:
         header_json, claims_json, signature = [
             utils.base64url_decode(p) for p in jwt.split('.')]
-    except:
+    except:  # noqa: E722
         logger.debug('invalid JWT, error splitting/decoding: %s',
                      jwt, exc_info=True)
         raise exceptions.InvalidFormatError
@@ -116,7 +116,7 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     if keypair:
         try:
             keypair.verify(data_to_sign, signature_b64)
-        except:
+        except:  # noqa: E722
             logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
             raise exceptions.InvalidSignatureError
 
@@ -280,7 +280,7 @@ def get_jws_key_ids(jws, default_kid=None, json_decoder=json.loads, ordered=Fals
         payload = json_decoder(payload_json)
         default_kid = payload and payload.get(
             'iss', default_kid) or default_kid
-    except:
+    except:  # noqa: E722
         logger.debug('error parsing JWS', exc_info=True)
         raise exceptions.InvalidFormatError
 
@@ -385,7 +385,7 @@ def get_jws_headers(jws, json_decoder=json.loads):
     jws = utils.to_string(jws)
     try:
         jws = json_decoder(jws)
-    except:
+    except:  # noqa: E722
         raise exceptions.InvalidFormatError
 
     return [_get_signature_header(s, json_decoder) for s in jws.get('signatures', [])]
@@ -524,7 +524,7 @@ def _verify_jose_header(header_json, strict_jwt, json_decoder):
 def _verify_claims(payload, contexts, json_decoder):
     try:
         claims = json_decoder(payload)
-    except:
+    except:  # noqa: E722
         logger.debug('unknown error verifying payload: %s',
                      payload, exc_info=True)
         raise exceptions.InvalidFormatError
@@ -622,7 +622,7 @@ def _get_signature_header(signature, json_decoder):
 def _verify_jws_signature(payload, keypair, signature):
     try:
         keypair.verify('.'.join([signature['protected'], payload]), signature['signature'])
-    except:
+    except:  # noqa: E722
         logger.debug('invalid signature', exc_info=True)
         raise exceptions.InvalidSignatureError
 
