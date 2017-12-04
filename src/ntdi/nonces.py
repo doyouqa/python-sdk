@@ -61,11 +61,11 @@ def _default_nonce_verifier(nonce):
     """
     The default verifier ignores context, so nonces are only valid globally once
     """
-    oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
-    nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
+    ntdi_directory = os.path.join(os.path.expanduser('~'), '.ntdi')
+    nonce_cache_fn = os.path.join(ntdi_directory, 'used_nonces.txt')
 
-    if not os.path.exists(oneid_directory):
-        os.makedirs(oneid_directory)
+    if not os.path.exists(ntdi_directory):
+        os.makedirs(ntdi_directory)
 
     if os.path.exists(nonce_cache_fn):
         count = 0
@@ -90,11 +90,11 @@ def _default_nonce_burner(nonce):
     """
     The default burner ignores context, so nonces are only valid globally once
     """
-    oneid_directory = os.path.join(os.path.expanduser('~'), '.oneid')
-    nonce_cache_fn = os.path.join(oneid_directory, 'used_nonces.txt')
+    ntdi_directory = os.path.join(os.path.expanduser('~'), '.ntdi')
+    nonce_cache_fn = os.path.join(ntdi_directory, 'used_nonces.txt')
 
-    if not os.path.exists(oneid_directory):
-        os.makedirs(oneid_directory)
+    if not os.path.exists(ntdi_directory):
+        os.makedirs(ntdi_directory)
 
     with open(nonce_cache_fn, 'a+') as fd:
         fd.write(nonce + '\n')
@@ -112,7 +112,7 @@ def set_nonce_handlers(nonce_verifier, nonce_burner, include_context=False):
     Sets the functions to verify nonces and record their use.
 
     By default, the nonces are saved in a local file
-    named `~/.oneid/used_nonces.txt` (or equivalent)
+    named `~/.ntdi/used_nonces.txt` (or equivalent)
 
     :param nonce_burner: function to be called to verify.
     :param nonce_verifier: function to be called to burn.

@@ -6,10 +6,10 @@ Credentials
 
 .. autoclass:: ntdi.keychain.Credentials
 
-ProjectCredentials
+FleetCredentials
 ------------------
 
-.. autoclass:: ntdi.keychain.ProjectCredentials
+.. autoclass:: ntdi.keychain.FleetCredentials
     :members:
 
 Keypair

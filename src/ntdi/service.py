@@ -38,7 +38,7 @@ class ServiceCreator(object):
         class_attrs = self._create_methods(service_model, **kwargs)
         cls = type(str(service_name), (BaseService,), class_attrs)
 
-        return cls(session, kwargs.get('project_credentials'))
+        return cls(session, kwargs.get('fleet_credentials'))
 
     def _create_methods(self, service_model, **kwargs):
         """
@@ -115,7 +115,7 @@ class BaseService(object):
     """
     Dynamically loaded by data files.
     """
-    def __init__(self, session, project_credentials=None):
+    def __init__(self, session, fleet_credentials=None):
         """
         Create a new Service
 
@@ -123,15 +123,15 @@ class BaseService(object):
         """
         self.session = session
 
-        self.project_credentials = None
-        if hasattr(self.session, 'project_credentials') and self.session.project_credentials:
-            self.project_credentials = self.session.project_credentials
+        self.fleet_credentials = None
+        if hasattr(self.session, 'fleet_credentials') and self.session.fleet_credentials:
+            self.fleet_credentials = self.session.fleet_credentials
 
         self.identity = self.session.identity_credentials.id
         self.credentials = self.session.identity_credentials
 
-        if self.project_credentials and self.project_credentials.id:
-            self.project_id = self.project_credentials.id
+        if self.fleet_credentials and self.fleet_credentials.id:
+            self.fleet_id = self.fleet_credentials.id
 
     def _format_url(self, url_template, **kwargs):
         """
@@ -139,8 +139,8 @@ class BaseService(object):
 
         :Example:
 
-            /project/{project_id}
-            >>> /project/abc-123
+            /fleet/{fleet_id}
+            >>> /fleet/abc-123
 
         :param url_template: url with arguments that need replaced by vars
         :param params: Dictionary lookup to replace url arguments with
@@ -152,7 +152,7 @@ class BaseService(object):
             if url_arg in kwargs:
                 encoded_params[url_arg] = kwargs[url_arg]
             elif hasattr(self, url_arg):
-                # Check if the argument is a class attribute (i.e. project_id)
+                # Check if the argument is a class attribute (i.e. fleet_id)
                 encoded_params[url_arg] = getattr(self, url_arg)
             else:
                 raise TypeError('Missing URL argument %s' % url_arg)

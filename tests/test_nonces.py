@@ -100,7 +100,7 @@ class TestVerifyAndBurnV1Nonces(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        logger.debug('writing nonce cache to %s/.oneid/used_nonces.txt', self.tmpdir)
+        logger.debug('writing nonce cache to %s/.ntdi/used_nonces.txt', self.tmpdir)
 
     def tearDown(self):
         pass
@@ -160,7 +160,7 @@ class BaseTestVerifyAndBurnNonce(object):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        logger.debug('writing nonce cache to %s/.oneid/used_nonces.txt', self.tmpdir)
+        logger.debug('writing nonce cache to %s/.ntdi/used_nonces.txt', self.tmpdir)
 
     def tearDown(self):
         pass
@@ -283,7 +283,7 @@ class TestBurnWithoutVerify(TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
-        logger.debug('writing nonce cache to %s/.oneid/used_nonces.txt', self.tmpdir)
+        logger.debug('writing nonce cache to %s/.ntdi/used_nonces.txt', self.tmpdir)
 
     def test_just_burning(self):
         nonce = nonces.make_nonce()

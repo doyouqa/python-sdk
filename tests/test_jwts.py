@@ -198,10 +198,10 @@ class TestJWTs(TestCase):
 
     def test_injected_issuer_claim(self):
         with_iss = {
-            'iss': 'not-oneid'
+            'iss': 'not-core'
         }
         self._create_and_verify_good_jwt(with_iss)
-        with_iss['iss'] = 'oneID'
+        with_iss['iss'] = 'TDI Core'
         self._create_and_verify_good_jwt(with_iss)
 
     def test_jwt_invalid_base64(self):

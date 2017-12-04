@@ -29,7 +29,7 @@ Steps:
 #. Server prepares a message for the IoT device and signs it.
 #. Server makes a two-factor authentication request to Neustar TDI with the prepared message.
 #. Neustar TDI verifies the server's identity and responds with Neustar TDI's signature for the message.
-#. Server then re-signs the message with the shared Project key.
+#. Server then re-signs the message with the shared Fleet key.
 #. Server sends the message with the two signatures to the IoT device.
 #. IoT device verifies **BOTH** signatures.
 
@@ -47,32 +47,32 @@ This will prompt you for your ``ACCESS_KEY`` and ``ACCESS_SECRET``.
 You can find all these in your `Neustar TDI developer console`_
 
 
-Creating a Project
+Creating a Fleet
 ~~~~~~~~~~~~~~~~~~
-All users, servers and edge devices need to be associated with a Project.
-Let's create a new Project.
+All users, servers and edge devices need to be associated with a Fleet.
+Let's create a new Fleet.
 
 .. code:: console
 
-   $ ntdi-cli create-project --name "my epic project"
+   $ ntdi-cli create-fleet --name "my epic device fleet"
 
-This will prompt you to generate the public/private key pair for the Project.
+This will prompt you to generate the public/private key pair for the Fleet.
 Answer 'Y' at this step.
-You will be given the Project ID and three keys.
+You will be given the Fleet ID and three keys.
 The first key is a Neustar TDI verification public key.
-The second is the Project verification public key.
-The third is your Project **SECRET** key.
+The second is the Fleet verification public key.
+The third is your Fleet **SECRET** key.
 
 .. danger::
-  SAVE THE PROJECT SECRET KEY IN A SAFE PLACE.
+  SAVE THE FLEET SECRET KEY IN A SAFE PLACE.
   If you lose this key, you will lose your ability to send authenticated messages`
   to your devices.
 
 The Neustar TDI verification public key will be given to all your edge devices and used
 to verify messages sent from a server.
 
-In the following steps, we will assume a Project ID of "d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9".
-You should substitute the one you get back from `ntdi-cli create-project`.
+In the following steps, we will assume a Fleet ID of "d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9".
+You should substitute the one you get back from `ntdi-cli create-fleet`.
 
 
 Server
@@ -86,7 +86,7 @@ Neustar TDI can verify.
 
 .. code:: console
 
-   $ ntdi-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
+   $ ntdi-cli provision --fleet-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "IoT server" --type server
 
 This will generate a new **SECRET** ``.pem`` file.
 
@@ -96,13 +96,13 @@ This will generate a new **SECRET** ``.pem`` file.
    or give them to anyone.
 
 If you created the server secret key on your personal computer, we need to copy it over to the
-server along with the Project key that was generated when you first created the Project.
+server along with the Fleet key that was generated when you first created the Fleet.
 
 .. code:: console
 
     $ scp /Users/me/secret/server_secret.pem ubuntu@10.1.2.3:/home/www/server_secret.pem
-    $ scp /Users/me/secret/project_secret.pem ubuntu@10.1.2.3:/home/www/project_secret.pem
-    $ scp /Users/me/secret/oneid_public.pem ubuntu@10.1.2.3:/home/www/oneid_public.pem
+    $ scp /Users/me/secret/fleet_secret.pem ubuntu@10.1.2.3:/home/www/fleet_secret.pem
+    $ scp /Users/me/secret/core_fleet_public.pem ubuntu@10.1.2.3:/home/www/core_fleet_public.pem
 
 In Python, we're just going to hardcode the path to these keys for quick access.
 
@@ -119,22 +119,22 @@ In Python, we're just going to hardcode the path to these keys for quick access.
 
     logger = logging.getLogger('fw_update.py')
 
-    # Unique Project ID provided by Neustar TDI
-    PROJECT_ID = 'b7f276d1-6c86-4f57-85e8-70105316225b'
-    PROJECT_PROJECT_ID = 'project/' + PROJECT_ID
+    # Unique Fleet ID provided by Neustar TDI
+    FLEET_ID = 'b7f276d1-6c86-4f57-85e8-70105316225b'
+    CORE_FLEET_ID = 'fleet/' + FLEET_ID
 
     # Unique Server ID,
     SERVER_ID = '709ec376-7e8c-40fc-94ee-14887023c885'
 
     # Secret keys we downloaded from Neustar TDI Developer Portal
     server_secret_key_path = (
-        './project-{pid}/server-{sid}/server-{sid}-priv.pem'.format(
-            pid=PROJECT_ID, sid=SERVER_ID
+        './fleet-{pid}/server-{sid}/server-{sid}-priv.pem'.format(
+            pid=FLEET_ID, sid=SERVER_ID
         )
     )
-    project_secret_key_path = (
-        './project-{pid}/project-{pid}-priv.pem'.format(
-            pid=PROJECT_ID, sid=SERVER_ID
+    fleet_secret_key_path = (
+        './fleet-{pid}/fleet-{pid}-priv.pem'.format(
+            pid=FLEET_ID, sid=SERVER_ID
         )
     )
 
@@ -142,13 +142,13 @@ In Python, we're just going to hardcode the path to these keys for quick access.
     server_key.identity = SERVER_ID
     server_credentials = Credentials(SERVER_ID, server_key)
 
-    project_key = Keypair.from_secret_pem(path=project_secret_key_path)
-    project_key.identity = PROJECT_PROJECT_ID
-    project_credentials = Credentials(PROJECT_ID, project_key)
+    fleet_key = Keypair.from_secret_pem(path=fleet_secret_key_path)
+    fleet_key.identity = CORE_FLEET_ID
+    fleet_credentials = Credentials(FLEET_ID, fleet_key)
 
     server_session = ServerSession(
         identity_credentials=server_credentials,
-        project_credentials=project_credentials
+        fleet_credentials=fleet_credentials
     )
 
     device_msg = server_session.prepare_message(
@@ -168,25 +168,25 @@ Just like we did with the server, we need to provision our IoT device.
 
 .. code:: console
 
-    $ ntdi-cli provision --project-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
+    $ ntdi-cli provision --fleet-id d47fedd0-729f-4941-b4bd-2ec4fe0f9ca9 --name "my edge device" --type edge_device
 
 
-Now we need to copy over the Neustar TDI verifier key, Project verifier key and the
+Now we need to copy over the Neustar TDI verifier key, Fleet verifier key and the
 new device secret key. The Neustar TDI verifier key can be downloaded
 from the `Neustar TDI developer console`_.
 
-You can print out your Project verifier key by adding a snippet to the previous code
+You can print out your Fleet verifier key by adding a snippet to the previous code
 example.
 
 .. code:: python
 
    import base64
-   project_verifier = base64.b64encode(project_key.public_key_der)
-   print(project_verifier)
+   fleet_verifier = base64.b64encode(fleet_key.public_key_der)
+   print(fleet_verifier)
 
 If you can SSH into your IoT device, you can do the same thing that we did with the server
-and copy over the device identity secret key. Since the Neustar TDI and Project verifier keys
-are static for all devices in a Project, we can hard code them in.
+and copy over the device identity secret key. Since the Neustar TDI and Fleet verifier keys
+are static for all devices in a Fleet, we can hard code them in.
 
 .. code:: console
 
@@ -200,22 +200,22 @@ by verifying the digital signatures.
     from ntdi.keychain import Keypair, Credentials
     from ntdi.session import DeviceSession
 
-    oneid_public_key_path = './oneid-pub.pem'
-    oneid_keypair = Keypair.from_public_pem(path=oneid_public_key_path)
-    oneid_keypair.identity = PROJECT_ID
+    core_fleet_public_key_path = './core-fleet-pub.pem'
+    core_fleet_keypair = Keypair.from_public_pem(path=core_fleet_public_key_path)
+    core_fleet_keypair.identity = FLEET_ID
 
-    project_public_key_path = './project-pub.pem'
-    project_keypair = Keypair.from_public_pem(path=project_public_key_path)
-    project_keypair.identity = PROJECT_PROJECT_ID
+    fleet_public_key_path = './fleet-pub.pem'
+    fleet_keypair = Keypair.from_public_pem(path=fleet_public_key_path)
+    fleet_keypair.identity = CORE_FLEET_ID
 
     device_session = DeviceSession(
-        project_credentials=Credentials(
-            identity=project_keypair.identity,
-            keypair=project_keypair
+        fleet_credentials=Credentials(
+            identity=fleet_keypair.identity,
+            keypair=fleet_keypair
         ),
-        oneid_credentials=Credentials(
-            identity=oneid_keypair.identity,
-            keypair=oneid_keypair
+        core_fleet_credentials=Credentials(
+            identity=core_fleet_keypair.identity,
+            keypair=core_fleet_keypair
         )
     )
 
@@ -232,6 +232,4 @@ by verifying the digital signatures.
         logger.warning('error: ', exc_info=True)
 
 
-.. _Neustar TDI developer account: https://developer.oneid.com/console
-.. _Neustar TDI developer console: https://developer.oneid.com/console
 .. _Redis Quick Start: http://redis.io/topics/quickstart

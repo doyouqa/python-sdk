@@ -18,26 +18,26 @@ class SessionBase(object):
     Abstract Session Class
 
     :ivar identity_credentials: TDI identity :class:`~ntdi.keychain.Credentials`
-    :ivar project_credentials: unique project credentials :class:`~ntdi.keychain.Credentials`
-    :ivar oneid_credentials: TDI project credentials :class:`~ntdi.keychain.Credentials`
-    :ivar oneid_credentials: peer credentials :class:`~ntdi.keychain.Credentials`
+    :ivar fleet_credentials: unique Fleet credentials :class:`~ntdi.keychain.Credentials`
+    :ivar core_fleet_credentials: TDI Core Fleet credentials :class:`~ntdi.keychain.Credentials`
+    :ivar core_fleet_credentials: peer credentials :class:`~ntdi.keychain.Credentials`
     :ivar config: Dictionary or configuration keyword arguments
     """
-    def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, peer_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, fleet_credentials=None,
+                 core_fleet_credentials=None, peer_credentials=None, config=None):
         """
 
         :param identity_credentials: :py:class:`~ntdi.keychain.Credentials`
-        :param project_credentials: :py:class:`~ntdi.keychain.ProjectCredentials`
-        :param oneid_credentials: :py:class:`~ntdi.keychain.Credentials`
+        :param fleet_credentials: :py:class:`~ntdi.keychain.FleetCredentials`
+        :param core_fleet_credentials: :py:class:`~ntdi.keychain.Credentials`
         :param peer_credentials: list of :py:class:`~ntdi.keychain.Credentials`
             If provided, session will be encrypted to recipients
         :param config: Dictionary or configuration keyword arguments
         :return:
         """
         self.identity_credentials = identity_credentials
-        self.project_credentials = project_credentials
-        self.oneid_credentials = oneid_credentials
+        self.fleet_credentials = fleet_credentials
+        self.core_fleet_credentials = core_fleet_credentials
         self.peer_credentials = peer_credentials
         if peer_credentials and not isinstance(peer_credentials, collections.Iterable):
             self.peer_credentials = [peer_credentials]
@@ -54,7 +54,7 @@ class SessionBase(object):
 
     def _create_services(self, methods, **kwargs):
         """
-        Populate session variables and create methods from args
+        Populate session variables and create methods
 
         :return: None
         """
@@ -134,24 +134,24 @@ class SessionBase(object):
 
 
 class DeviceSession(SessionBase):
-    def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, peer_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, fleet_credentials=None,
+                 core_fleet_credentials=None, peer_credentials=None, config=None):
         super(DeviceSession, self).__init__(identity_credentials,
-                                            project_credentials,
-                                            oneid_credentials,
+                                            fleet_credentials,
+                                            core_fleet_credentials,
                                             peer_credentials, config)
 
     def verify_message(self, message, rekey_credentials=None):
         """
-        Verify a message received from the Project
+        Verify a message received from the Fleet
 
         :param message: JSON formatted JWS with at least two signatures
         :param rekey_credentials: List of :class:`~ntdi.keychain.Credential`
         :return: verified message or False if not valid
         """
         standard_keypairs = [
-            self.project_credentials.keypair,
-            self.oneid_credentials.keypair,
+            self.fleet_credentials.keypair,
+            self.core_fleet_credentials.keypair,
         ]
 
         if rekey_credentials:
@@ -222,11 +222,11 @@ class ServerSession(SessionBase):
     """
     Enable Server to request two-factor Authentication from TDI Core
     """
-    def __init__(self, identity_credentials=None, project_credentials=None,
-                 oneid_credentials=None, peer_credentials=None, config=None):
+    def __init__(self, identity_credentials=None, fleet_credentials=None,
+                 core_fleet_credentials=None, peer_credentials=None, config=None):
         super(ServerSession, self).__init__(identity_credentials,
-                                            project_credentials,
-                                            oneid_credentials,
+                                            fleet_credentials,
+                                            core_fleet_credentials,
                                             peer_credentials, config)
 
         if isinstance(config, dict):
@@ -234,19 +234,19 @@ class ServerSession(SessionBase):
         else:
             # Load default
             default_config = os.path.join(os.path.dirname(__file__),
-                                          'data', 'oneid_server.yaml')
+                                          'data', 'core_cosign.yaml')
             params = self._load_config(config if config else default_config)
 
         self._create_services(params)
 
     def _create_services(self, params, **kwargs):
         """
-        Populate session variables and create methods from
+        Populate session variables and create methods
         :return: None
         """
         global_kwargs = params.get('GLOBAL', {})
-        if self.project_credentials:
-            global_kwargs['project_credentials'] = self.project_credentials
+        if self.fleet_credentials:
+            global_kwargs['fleet_credentials'] = self.fleet_credentials
 
         super(ServerSession, self)._create_services(params, **global_kwargs)
 
@@ -264,11 +264,11 @@ class ServerSession(SessionBase):
         :type other_recipients: list of :class:`~ntdi.keychain.Credential`
         :return: Signed JWS to be sent to devices
         """
-        if self.project_credentials is None:
+        if self.fleet_credentials is None:
             raise AttributeError
 
         keypairs = [
-            self.project_credentials.keypair
+            self.fleet_credentials.keypair
         ]
 
         if rekey_credentials:
@@ -286,32 +286,32 @@ class ServerSession(SessionBase):
 
         jws = jwts.make_jws(claims, self.identity_credentials.keypair)
 
-        oneid_response = self.authenticate.server(
-            project_id=self.project_credentials.keypair.identity,
+        core_response = self.authenticate.server(
+            fleet_id=self.fleet_credentials.keypair.identity,
             identity=self.identity_credentials.keypair.identity,
             body=jws
         )
 
-        if not oneid_response:
+        if not core_response:
             logger.debug('TDI Core refused to co-sign server message')
             raise exceptions.InvalidAuthentication
 
         stripped_response = jwts.remove_jws_signatures(
-            oneid_response, self.identity_credentials.id
+            core_response, self.identity_credentials.id
         )
         return jwts.extend_jws_signatures(stripped_response, keypairs)
 
     def send_message(self, *args, **kwargs):
         raise NotImplementedError
 
-    def verify_message(self, message, device_credentials, get_oneid_cosignature=True):
+    def verify_message(self, message, device_credentials, get_core_cosignature=True):
         """
         Verify a message received from/through one or more Devices
 
         :param message: JSON formatted JWS or JWT signed by the Device
         :param device_credentials: :class:`~ntdi.keychain.Credential` (or list of them)
             to verify Device signature(s) against
-        :param get_oneid_cosignature: (default: True) verify with TDI Core first
+        :param get_core_cosignature: (default: True) verify with TDI Core first
         :return: verified message or False if not valid
         """
 
@@ -323,20 +323,20 @@ class ServerSession(SessionBase):
 
         keypairs = [credential.keypair for credential in device_credentials]
 
-        if get_oneid_cosignature:
-            keypairs += [self.oneid_credentials.keypair]
+        if get_core_cosignature:
+            keypairs += [self.core_fleet_credentials.keypair]
 
             # TODO: if not already signed by Core: (for now, do as asked, let caller deal with it)
 
             if len(device_credentials) == 1:
                 message = self.authenticate.edge_device(
-                    project_id=self.project_credentials.keypair.identity,
+                    fleet_id=self.fleet_credentials.keypair.identity,
                     identity=keypairs[0].identity,
                     body=message,
                 )
             else:
-                message = self.authenticate.project(
-                    project_id=self.project_credentials.keypair.identity,
+                message = self.authenticate.fleet(
+                    fleet_id=self.fleet_credentials.keypair.identity,
                     body=message,
                 )
 
@@ -348,10 +348,10 @@ class ServerSession(SessionBase):
 
         if jose.is_jwe(ret):
             try:
-                # the message is most likely intended for the Project
-                ret = jwes.decrypt_jwe(ret, self.project_credentials.keypair)
+                # the message is most likely intended for the Fleet
+                ret = jwes.decrypt_jwe(ret, self.fleet_credentials.keypair)
             except exceptions.InvalidRecipient:
-                # but in case it is intended for the Project Server itself
+                # but in case it is intended for the Fleet Server itself
                 ret = jwes.decrypt_jwe(ret, self.identity_credentials.keypair)
 
         return ret
@@ -360,32 +360,32 @@ class ServerSession(SessionBase):
 class AdminSession(SessionBase):
     """
     Admin Users will only interface with TDI Core service,
-    They only need an identity_credentials and oneid_credentials
+    They only need an identity_credentials and core_fleet_credentials
     to verify responses
     """
-    def __init__(self, identity_credentials, project_credentials=None,
-                 oneid_credentials=None, config=None):
+    def __init__(self, identity_credentials, fleet_credentials=None,
+                 core_fleet_credentials=None, config=None):
         super(AdminSession, self).__init__(identity_credentials,
-                                           project_credentials,
-                                           oneid_credentials, config)
+                                           fleet_credentials,
+                                           core_fleet_credentials, config)
 
         if isinstance(config, dict):
             params = config
         else:
             default_config = os.path.join(os.path.dirname(__file__),
-                                          'data', 'oneid_admin.yaml')
+                                          'data', 'core_revocation.yaml')
             params = self._load_config(config if config else default_config)
 
         self._create_services(params)
 
     def _create_services(self, params, **kwargs):
         """
-        Populate session variables and create methods from
+        Populate session variables and create methods
         :return: None
         """
         global_kwargs = params.get('GLOBAL', {})
-        if self.project_credentials:
-            global_kwargs['project_credentials'] = self.project_credentials
+        if self.fleet_credentials:
+            global_kwargs['fleet_credentials'] = self.fleet_credentials
 
         super(AdminSession, self)._create_services(params, **global_kwargs)
 

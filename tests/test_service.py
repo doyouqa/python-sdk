@@ -56,13 +56,13 @@ class TestServiceCreator(unittest.TestCase):
         self.assertEqual(self.service.__class__.__name__, "svc")
         self.assertTrue(hasattr(self.service, "test_method"))
 
-    def test_service_class_with_project_creds(self):
+    def test_service_class_with_fleet_creds(self):
         mock_proj_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.proj_key_bytes
         )
         proj_credentials = keychain.Credentials('proj-id', mock_proj_keypair)
         sess = session.ServerSession(self.credentials,
-                                     project_credentials=proj_credentials)
+                                     fleet_credentials=proj_credentials)
         svc = self.service_creator.create_service_class('svc',
                                                         self.model,
                                                         sess)

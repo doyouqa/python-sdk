@@ -3,8 +3,14 @@ GLOBAL:
   api_version: 1.0
 
 revoke:
+  fleet:
+    endpoint: /fleets/{fleet_id}/revoke
+    method: POST
+    help: Revoke an entire Fleet.
+    arguments: {}
+
   edge_device:
-    endpoint: /fleets/{project_id}/edge_device/{edge_device_id}/revoke
+    endpoint: /fleets/{fleet_id}/edge_device/{edge_device_id}/revoke
     method: POST
     help: Revoke an edge device.
     arguments:
@@ -13,9 +19,35 @@ revoke:
         required: True
 
   server:
-    endpoint: /fleets/{project_id}/server/{server_id}/revoke
+    endpoint: /fleets/{fleet_id}/server/{server_id}/revoke
     method: POST
     help: Revoke a server
+    arguments:
+      server_id:
+        location: url
+        required: True
+
+
+unrevoke:
+  fleet:
+    endpoint: /fleets/{fleet_id}/unrevoke
+    method: POST
+    help: Unrevoke an entire Fleet.
+    arguments: {}
+
+  edge_device:
+    endpoint: /fleets/{fleet_id}/edge_device/{edge_device_id}/unrevoke
+    method: POST
+    help: Unrevoke an edge device.
+    arguments:
+      edge_device_id:
+        location: url
+        required: True
+
+  server:
+    endpoint: /fleets/{fleet_id}/server/{server_id}/unrevoke
+    method: POST
+    help: Unrevoke a server
     arguments:
       server_id:
         location: url

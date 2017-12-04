@@ -35,19 +35,19 @@ class TestCredentials(unittest.TestCase):
             keychain.Credentials(self.uuid, None)
 
 
-class TestProjectCredentials(TestCredentials):
+class TestFleetCredentials(TestCredentials):
     def setUp(self):
-        super(TestProjectCredentials, self).setUp()
+        super(TestFleetCredentials, self).setUp()
         self.encryption_key = os.urandom(32)
         self.data = 'super 🔥data'
-        self.project_credentials = keychain.ProjectCredentials(
+        self.fleet_credentials = keychain.FleetCredentials(
             self.uuid,
             self.keypair,
             self.encryption_key
         )
 
     def test_encrypt(self):
-        enc = self.project_credentials.encrypt(self.data)
+        enc = self.fleet_credentials.encrypt(self.data)
         self.assertIn("cipher", enc)
         self.assertIn("mode", enc)
         self.assertIn("ts", enc)
@@ -56,7 +56,7 @@ class TestProjectCredentials(TestCredentials):
         self.assertEqual(enc.get("ts"), 128)
 
         cleartext = utils.to_string(
-            self.project_credentials.decrypt(enc)
+            self.fleet_credentials.decrypt(enc)
         )
         self.assertEqual(cleartext, self.data)
 
@@ -65,34 +65,34 @@ class TestProjectCredentials(TestCredentials):
 
         for text in data:
             logger.debug('enc/dec %s', text)
-            enc = self.project_credentials.encrypt(text)
+            enc = self.fleet_credentials.encrypt(text)
             cleartext = utils.to_string(
-                self.project_credentials.decrypt(enc)
+                self.fleet_credentials.decrypt(enc)
             )
             self.assertEqual(cleartext, utils.to_string(text))
 
     def test_decrypt_dict_invalid(self):
         with self.assertRaises(ValueError):
-            self.project_credentials.decrypt({})
+            self.fleet_credentials.decrypt({})
         with self.assertRaises(ValueError):
-            self.project_credentials.decrypt(
+            self.fleet_credentials.decrypt(
                 {'cipher': 'BES', 'mode': 'gcm',
                  'ts': 128, 'iv': 'aa', 'ct': 'aa'}
             )
         with self.assertRaises(ValueError):
-            self.project_credentials.decrypt(
+            self.fleet_credentials.decrypt(
                 {'cipher': 'aes', 'mode': 'HCM',
                  'ts': 128, 'iv': 'aa', 'ct': 'aa'}
             )
         with self.assertRaises(ValueError):
-            self.project_credentials.decrypt(
+            self.fleet_credentials.decrypt(
                 {
                     'cipher': 'aes', 'mode': 'gcm',
                     'ts': 129, 'iv': 'aa', 'ct': 'aa'
                 }
             )
         with self.assertRaises((binascii.Error, TypeError)):
-            self.project_credentials.decrypt(
+            self.fleet_credentials.decrypt(
                 {
                     'cipher': 'aes', 'mode': 'gcm',
                     'ts': 128, 'iv': 'aa', 'ct': 'aa'

@@ -3,8 +3,8 @@ GLOBAL:
   api_version: 1.0
 
 authenticate:
-  project:
-    endpoint: /fleets/{project_id}/cosign
+  fleet:
+    endpoint: /fleets/{fleet_id}/cosign
     method: POST
     help: Authenticate an arbitrarily-signed message with TDI Core.
     arguments:
@@ -13,7 +13,7 @@ authenticate:
         required: True
 
   edge_device:
-    endpoint: /fleets/{project_id}/cosign_for_edge_device/{identity}
+    endpoint: /fleets/{fleet_id}/cosign_for_edge_device/{identity}
     method: POST
     help: Authenticate a single-device-signed message with TDI Core.
     arguments:
@@ -25,7 +25,7 @@ authenticate:
         required: True
 
   server:
-    endpoint: /fleets/{project_id}/cosign_for_server/{identity}
+    endpoint: /fleets/{fleet_id}/cosign_for_server/{identity}
     method: POST
     help: Authenticate a single-server-signed message with TDI Core.
     arguments:

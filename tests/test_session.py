@@ -21,17 +21,17 @@ def _handle_auth_endpoint(headers=None, data=None, allow_multiple=False):
     logger.debug('data=%s', data)
 
     try:
-        oneid_key = keychain.Keypair.from_secret_pem(
-            key_bytes=TestSession.oneid_key_bytes,
+        core_key = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.core_key_bytes,
         )
-        oneid_key.identity = 'oneID'
+        core_key.identity = 'NTDI Core'
         jwts.verify_jws(data)
 
         if not allow_multiple and len(jwts.get_jws_key_ids(data)) != 1:
             logger.debug('not verifying multiple signatures, data=%s', data)
             return MockResponse('', 204)
 
-        jws = jwts.extend_jws_signatures(data, oneid_key)
+        jws = jwts.extend_jws_signatures(data, core_key)
         logger.debug('jws=%s', jws)
         return MockResponse(jws, 200)
     except InvalidSignature:
@@ -101,11 +101,11 @@ class TestSession(object):
                     'wNYb5NxR4ZHQKg/odM76371cvsaMa/w0WtwZ5b8aNKAUGqS+YO+v6m' \
                     'P\n-----END PRIVATE KEY-----\n'
 
-    oneid_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgE' \
-                      'GCCqGSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliy' \
-                      'wt1eAOoW6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov' \
-                      '/il\nI9HAi/wHxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC' \
-                      '9xXCLRCpH\n-----END PRIVATE KEY-----\n'
+    core_key_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgE' \
+                     'GCCqGSM49AwEHBG0wawIBAQQgm0PZgUme63i6fC/G\nmNSSsFliy' \
+                     'wt1eAOoW6Dm/Wz0UrihRANCAATbU7pd0Vg/MYuGOW8E+kpfuo4ov' \
+                     '/il\nI9HAi/wHxHqlSxbzagczAUo9kNr4r2w3eTtvf4EuXaC9ZEC' \
+                     '9xXCLRCpH\n-----END PRIVATE KEY-----\n'
 
     reset_key_A_bytes = '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49A' \
                         'gEGCCqGSM49AwEHBG0wawIBAQQgoipfyjtZXMp5pV/V\naTMQQ' \
@@ -176,14 +176,14 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_proj_keypair
         )
 
-        self.mock_oneid_keypair = keychain.Keypair.from_secret_pem(
-            key_bytes=TestSession.oneid_key_bytes
+        self.mock_core_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.core_key_bytes
         )
-        self.mock_oneid_keypair.identity = 'oneid-id'
+        self.mock_core_keypair.identity = 'ntdi-core-id'
 
-        self.oneid_credentials = keychain.Credentials(
-            self.mock_oneid_keypair.identity,
-            self.mock_oneid_keypair
+        self.core_fleet_credentials = keychain.Credentials(
+            self.mock_core_keypair.identity,
+            self.mock_core_keypair
         )
 
         mock_peer_keypair = keychain.Keypair.from_secret_pem(
@@ -267,11 +267,11 @@ class TestDeviceSession(unittest.TestCase):
     def test_verify_message(self):
         message = jwts.make_jws(
             {'b': 2},
-            [self.mock_proj_keypair, self.mock_oneid_keypair]
+            [self.mock_proj_keypair, self.mock_core_keypair]
         )
 
         sess = session.DeviceSession(
-            self.id_credentials, self.proj_credentials, self.oneid_credentials
+            self.id_credentials, self.proj_credentials, self.core_fleet_credentials
         )
 
         claims = sess.verify_message(message)
@@ -281,14 +281,14 @@ class TestDeviceSession(unittest.TestCase):
 
     def test_verify_message_with_rekey(self):
         message = jwts.make_jws({'c': 3}, [
-            self.mock_proj_keypair, self.mock_oneid_keypair,
+            self.mock_proj_keypair, self.mock_core_keypair,
             self.mock_resetA_keypair,
             self.mock_resetB_keypair,
             self.mock_resetC_keypair,
         ])
 
         sess = session.DeviceSession(
-            self.id_credentials, self.proj_credentials, self.oneid_credentials,
+            self.id_credentials, self.proj_credentials, self.core_fleet_credentials,
         )
 
         claims = sess.verify_message(message, rekey_credentials=[
@@ -309,7 +309,7 @@ class TestDeviceSession(unittest.TestCase):
         ])
 
         sess = session.DeviceSession(
-            self.id_credentials, self.proj_credentials, self.oneid_credentials,
+            self.id_credentials, self.proj_credentials, self.core_fleet_credentials,
         )
 
         claims = sess.verify_message(message, rekey_credentials=[
@@ -329,10 +329,10 @@ class TestDeviceSession(unittest.TestCase):
             self.id_credentials.keypair,
             jsonify=False,
         )
-        jws = jwts.make_jws(jwe, [self.mock_proj_keypair, self.mock_oneid_keypair])
+        jws = jwts.make_jws(jwe, [self.mock_proj_keypair, self.mock_core_keypair])
 
         sess = session.DeviceSession(
-            self.id_credentials, self.proj_credentials, self.oneid_credentials
+            self.id_credentials, self.proj_credentials, self.core_fleet_credentials
         )
         claims = sess.verify_message(jws)
         self.assertIsInstance(claims, dict)
@@ -351,12 +351,12 @@ class TestServerSession(unittest.TestCase):
             mock_keypair.identity, mock_keypair
         )
 
-        mock_oneid_keypair = keychain.Keypair.from_secret_pem(
-            key_bytes=TestSession.oneid_key_bytes
+        mock_core_keypair = keychain.Keypair.from_secret_pem(
+            key_bytes=TestSession.core_key_bytes
         )
-        mock_oneid_keypair.identity = 'oneID'
-        self.oneid_credentials = keychain.Credentials(
-            mock_oneid_keypair.identity, mock_oneid_keypair
+        mock_core_keypair.identity = 'NTDI Core'
+        self.core_fleet_credentials = keychain.Credentials(
+            mock_core_keypair.identity, mock_core_keypair
         )
 
         mock_alt_keypair = keychain.Keypair.from_secret_pem(
@@ -367,12 +367,12 @@ class TestServerSession(unittest.TestCase):
             mock_alt_keypair.identity, mock_alt_keypair
         )
 
-        mock_project_keypair = keychain.Keypair.from_secret_pem(
+        mock_fleet_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.proj_key_bytes
         )
-        mock_project_keypair.identity = 'proj'
-        self.project_credentials = keychain.Credentials(
-            mock_project_keypair.identity, mock_project_keypair
+        mock_fleet_keypair.identity = 'proj'
+        self.fleet_credentials = keychain.Credentials(
+            mock_fleet_keypair.identity, mock_fleet_keypair
         )
         mock_resetA_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.reset_key_A_bytes
@@ -413,7 +413,7 @@ class TestServerSession(unittest.TestCase):
             },
             'authenticate': {},
         }
-        self.fake_config['authenticate']['project'] = {
+        self.fake_config['authenticate']['fleet'] = {
             'endpoint': '/auth/generic_endpoint',
             'method': 'POST',
             'arguments': {
@@ -469,8 +469,8 @@ class TestServerSession(unittest.TestCase):
     def test_prepare_message(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
 
@@ -479,8 +479,8 @@ class TestServerSession(unittest.TestCase):
         )
 
         keypairs = [
-            self.oneid_credentials.keypair,
-            self.project_credentials.keypair,
+            self.core_fleet_credentials.keypair,
+            self.fleet_credentials.keypair,
         ]
 
         verified = jwts.verify_jws(authenticated_data, keypairs)
@@ -493,8 +493,8 @@ class TestServerSession(unittest.TestCase):
         peer_credentials = self.alt_credentials
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             peer_credentials=peer_credentials,
             config=self.fake_config,
         )
@@ -504,8 +504,8 @@ class TestServerSession(unittest.TestCase):
         )
 
         keypairs = [
-            self.oneid_credentials.keypair,
-            self.project_credentials.keypair,
+            self.core_fleet_credentials.keypair,
+            self.fleet_credentials.keypair,
         ]
 
         jwe = jwts.verify_jws(jws, keypairs)
@@ -520,18 +520,18 @@ class TestServerSession(unittest.TestCase):
     def test_prepare_message_failed_cosign(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
 
         with self.assertRaises(exceptions.InvalidAuthentication):
             sess.prepare_message(a=1, b=2)
 
-    def test_prepare_message_no_project(self):
+    def test_prepare_message_no_fleet(self):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials
+            core_fleet_credentials=self.core_fleet_credentials
         )
 
         with self.assertRaises(AttributeError):
@@ -541,8 +541,8 @@ class TestServerSession(unittest.TestCase):
     def test_reset_keys(self, mock_request):
         sess = session.ServerSession(
             identity_credentials=self.id_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
 
@@ -556,8 +556,8 @@ class TestServerSession(unittest.TestCase):
         )
 
         keypairs = [
-            self.oneid_credentials.keypair,
-            self.project_credentials.keypair,
+            self.core_fleet_credentials.keypair,
+            self.fleet_credentials.keypair,
             self.resetA_credentials.keypair,
             self.resetB_credentials.keypair,
             self.resetC_credentials.keypair,
@@ -574,8 +574,8 @@ class TestServerSession(unittest.TestCase):
         )
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(message, self.id_credentials)
@@ -591,8 +591,8 @@ class TestServerSession(unittest.TestCase):
         )
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(message, self.id_credentials)
@@ -608,8 +608,8 @@ class TestServerSession(unittest.TestCase):
         )
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(message, [self.id_credentials, self.alt_credentials])
@@ -624,31 +624,31 @@ class TestServerSession(unittest.TestCase):
             self.id_credentials.keypair
         )
         sess = session.ServerSession(
-            identity_credentials=self.alt_credentials,   # id_cred needed for device/oneid
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            identity_credentials=self.alt_credentials,   # id_cred needed for device
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(
-            message, self.id_credentials, get_oneid_cosignature=False
+            message, self.id_credentials, get_core_cosignature=False
         )
         self.assertIsInstance(claims, dict)
         self.assertIn("c", claims)
         self.assertEqual(claims.get("c"), 3)
 
     @mock.patch('ntdi.session.request', side_effect=mock_request)
-    def test_verify_message_project_jwe(self, mock_request):
+    def test_verify_message_fleet_jwe(self, mock_request):
         jwe = jwes.make_jwe(
             {'c': 3},
             self.id_credentials.keypair,
-            self.project_credentials.keypair,
+            self.fleet_credentials.keypair,
             jsonify=False,
         )
         message = jwts.make_jws(jwe, [self.id_credentials.keypair])
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(message, self.id_credentials)
@@ -657,7 +657,7 @@ class TestServerSession(unittest.TestCase):
         self.assertEqual(claims.get("c"), 3)
 
     @mock.patch('ntdi.session.request', side_effect=mock_request)
-    def test_verify_message_project_server_jwe(self, mock_request):
+    def test_verify_message_fleet_server_jwe(self, mock_request):
         jwe = jwes.make_jwe(
             {'c': 3},
             self.id_credentials.keypair,
@@ -667,8 +667,8 @@ class TestServerSession(unittest.TestCase):
         message = jwts.make_jws(jwe, [self.id_credentials.keypair])
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         claims = sess.verify_message(message, self.id_credentials)
@@ -684,8 +684,8 @@ class TestServerSession(unittest.TestCase):
         )
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         with self.assertRaises(AttributeError):
@@ -699,8 +699,8 @@ class TestServerSession(unittest.TestCase):
         )
         sess = session.ServerSession(
             identity_credentials=self.alt_credentials,
-            oneid_credentials=self.oneid_credentials,
-            project_credentials=self.project_credentials,
+            core_fleet_credentials=self.core_fleet_credentials,
+            fleet_credentials=self.fleet_credentials,
             config=self.fake_config,
         )
         with self.assertRaises(exceptions.InvalidAuthentication):
@@ -743,12 +743,12 @@ class TestAdminSession(unittest.TestCase):
             key_bytes=TestSession.id_key_bytes
         )
         self.credentials = keychain.Credentials('me', mock_keypair)
-        mock_project_keypair = keychain.Keypair.from_secret_pem(
+        mock_fleet_keypair = keychain.Keypair.from_secret_pem(
             key_bytes=TestSession.proj_key_bytes
         )
 
-        self.project_credentials = keychain.Credentials(
-            'proj', mock_project_keypair
+        self.fleet_credentials = keychain.Credentials(
+            'proj', mock_fleet_keypair
         )
         self.custom_config = dict()
         global_config = self.custom_config['GLOBAL'] = dict()
@@ -765,8 +765,9 @@ class TestAdminSession(unittest.TestCase):
     def test_admin_session_defaults(self):
         sess = session.AdminSession(self.credentials)
         self.assertTrue(hasattr(sess, "revoke"))
+        self.assertTrue(hasattr(sess, "unrevoke"))
         self.assertIsInstance(sess.revoke, service.BaseService)
-        self.assertEqual(sess.revoke.__class__.__name__, "revoke")
+        self.assertIsInstance(sess.unrevoke, service.BaseService)
 
     def test_admin_session_config(self):
         sess = session.AdminSession(self.credentials,
@@ -774,15 +775,15 @@ class TestAdminSession(unittest.TestCase):
         self.assertIsInstance(sess.test_service, service.BaseService)
         self.assertEqual(sess.test_service.__class__.__name__, 'test_service')
 
-    def test_project_credentials(self):
+    def test_fleet_credentials(self):
         sess = session.AdminSession(self.credentials)
-        self.assertIsNone(sess.project_credentials)
+        self.assertIsNone(sess.fleet_credentials)
 
         sess = session.AdminSession(
             self.credentials,
-            project_credentials=self.project_credentials
+            fleet_credentials=self.fleet_credentials
         )
-        self.assertEqual(sess.project_credentials, self.project_credentials)
+        self.assertEqual(sess.fleet_credentials, self.fleet_credentials)
 
     def test_admin_session_missing_arg(self):
         sess = session.AdminSession(self.credentials,

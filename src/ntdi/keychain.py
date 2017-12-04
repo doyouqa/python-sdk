@@ -54,30 +54,30 @@ class Credentials(object):
         self.keypair = keypair
 
 
-class ProjectCredentials(Credentials):
-    def __init__(self, project_id, keypair, encryption_key):
+class FleetCredentials(Credentials):
+    def __init__(self, fleet_id, keypair, encryption_key):
         """
         Adds an encryption key
 
-        :param project_id: oneID project UUID
+        :param fleet_id: Fleet UUID
         :param keypair: :py:class:`~ntdi.keychain.BaseKeypair`
         :param encryption_key: AES key used to encrypt messages
         """
-        super(ProjectCredentials, self).__init__(project_id, keypair)
+        super(FleetCredentials, self).__init__(fleet_id, keypair)
         self._encryption_key = encryption_key
 
     def encrypt(self, plain_text):
         """
-        Encrypt plain text with the project encryption key.
+        Encrypt plain text with the Fleet encryption key.
 
-        :param plain_text: String or bytes to encrypt with project encryption key.
+        :param plain_text: String or bytes to encrypt with Fleet encryption key.
         :returns: Dictionary with cipher text and encryption params.
         """
         return symcrypt.aes_encrypt(plain_text, self._encryption_key)
 
     def decrypt(self, cipher_text):
         """
-        Decrypt cipher text that was encrypted with the project encryption key
+        Decrypt cipher text that was encrypted with the Fleet encryption key
 
         :param cipher_text: Encrypted dict as returned by :py:encrypt:
         :returns: plain text
@@ -288,7 +288,7 @@ class Keypair(BaseKeypair):
         """
         Create a :py:class:`~ntdi.keychain.Keypair` from a JWK
 
-        :param jwk: oneID-standard JWK
+        :param jwk: TDI-standard JWK
         :return: :py:class:`~ntdi.keychain.Keypair` instance
         :raises InvalidFormatError: if not a valid JWK
         """
@@ -322,7 +322,7 @@ class Keypair(BaseKeypair):
         The keys as a JSON Web Key (JWK)
         Private key will be included only if present
 
-        :return: oneID-standard JWK
+        :return: TDI-standard JWK
         """
         return self.get_jwk(True)
 
@@ -331,7 +331,7 @@ class Keypair(BaseKeypair):
         """
         The public key as a JSON Web Key (JWK)
 
-        :return: oneID-standard JWK
+        :return: TDI-standard JWK
         """
         return self.get_jwk(False)
 
@@ -340,7 +340,7 @@ class Keypair(BaseKeypair):
         """
         The private key as a JSON Web Key (JWK)
 
-        :return: oneID-standard JWK
+        :return: TDI-standard JWK
         :raises InvalidFormatError: if not a private key
         """
         if not self.is_secret:
