@@ -101,6 +101,10 @@ class BaseKeypair(object):
         self.use = use
 
     @property
+    def is_private(self):
+        raise NotImplementedError
+
+    @property
     def public_key_der(self):
         raise NotImplementedError
 
@@ -134,7 +138,7 @@ class BaseKeypair(object):
     def sign(self, payload):
         raise NotImplementedError
 
-    def ecdh(self, peer_keypair, algorithm='A256GCM', party_u_info=None, party_v_info=None):
+    def raw_ecdh(self, peer_keypair):
         raise NotImplementedError
 
     def save(self, *args, **kwargs):
@@ -148,7 +152,33 @@ class BaseKeypair(object):
         """
         raise NotImplementedError
 
-    def _calc_otherinfo(self, algorithm, party_u_info, party_v_info):
+    def ecdh(self, peer_keypair, algorithm='A256GCM', party_u_info=None, party_v_info=None):
+        """
+        Derive a shared symmetric key for encrypting data to a given recipient
+
+        :param peer_keypair: Public key of the recipient
+        :type peer_keypair: :py:class:`~ntdi.keychain.Keypair`
+        :param algorithm: The algorithm associated with the operation (defaults to 'A256GCM')
+        :type algorithm: str
+        :param party_u_info: shared identifying information about the sender (optional)
+        :type party_u_info: str or bytes
+        :param party_v_info: shared identifying information about the recipient (optional)
+        :type party_v_info: str or bytes
+        :returns: a 256-bit encryption key, to be passed to ecdh_derive
+        :return_type: bytes
+        :raises InvalidFormatError: if self is not a private key
+        """
+        if not self.is_secret:
+            raise exceptions.InvalidFormatError
+        raw_key = self.raw_ecdh(peer_keypair)
+        otherinfo = self.calc_ecdh_otherinfo(algorithm, party_u_info, party_v_info)
+        ret = self.ecdh_derive(raw_key, otherinfo)
+
+        del raw_key
+
+        return ret
+
+    def calc_ecdh_otherinfo(self, algorithm, party_u_info, party_v_info):
         """
         Broken out so testing can override to inject CAVP vector data
         """
@@ -159,7 +189,11 @@ class BaseKeypair(object):
             utils.to_bytes(struct.pack(">I", 256))
         )
 
-    def _derive_ecdh(self, raw_key, otherinfo):
+    def ecdh_derive(self, raw_key, otherinfo):
+        """
+        Applies Standard KDF for ECDH, but some implementations may override,
+        say to implement in hardware.
+        """
         ckdf = ConcatKDFHash(
             algorithm=hashes.SHA256(),
             length=32,
@@ -409,31 +443,8 @@ class Keypair(BaseKeypair):
         b64_signature = utils.base64url_encode(str_sig)
         return b64_signature
 
-    def ecdh(self, peer_keypair, algorithm='A256GCM', party_u_info=None, party_v_info=None):
-        """
-        Derive a shared symmetric key for encrypting data to a given recipient
-
-        :param peer_keypair: Public key of the recipient
-        :type peer_keypair: :py:class:`~ntdi.keychain.Keypair`
-        :param algorithm: The algorithm associated with the operation (defaults to 'A256GCM')
-        :type algorithm: str
-        :param party_u_info: shared identifying information about the sender (optional)
-        :type party_u_info: str or bytes
-        :param party_v_info: shared identifying information about the recipient (optional)
-        :type party_v_info: str or bytes
-        :returns: a 256-bit encryption key
-        :return_type: bytes
-        :raises InvalidFormatError: if self is not a private key
-        """
-        if not self.is_secret:
-            raise exceptions.InvalidFormatError
-        raw_key = self._raw_ecdh(peer_keypair)
-        otherinfo = self._calc_otherinfo(algorithm, party_u_info, party_v_info)
-        ret = self._derive_ecdh(raw_key, otherinfo)
-
-        del raw_key
-
-        return ret
+    def raw_ecdh(self, peer_keypair):
+        return self._private_key.exchange(ec.ECDH(), peer_keypair.public_key)
 
     @property
     def public_key(self):
@@ -464,9 +475,6 @@ class Keypair(BaseKeypair):
         :return: Public Key in PEM format
         """
         return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
-
-    def _raw_ecdh(self, peer_keypair):
-        return self._private_key.exchange(ec.ECDH(), peer_keypair.public_key)
 
 
 def _len_bytes(data):

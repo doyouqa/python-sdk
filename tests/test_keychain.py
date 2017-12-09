@@ -894,7 +894,7 @@ class TestKeypair(unittest.TestCase):
         ]
 
         class _TestKeypair(keychain.Keypair):
-            def _calc_otherinfo(self, algorithm, party_u_info, party_v_info):
+            def calc_ecdh_otherinfo(self, algorithm, party_u_info, party_v_info):
                 return self._otherinfo
 
         for vec in _CAVS_VECTORS:
