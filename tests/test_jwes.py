@@ -16,8 +16,8 @@ from ntdi import jwes, nonces, service, exceptions, utils
 logger = logging.getLogger(__name__)
 
 
-def _remove_secret(keypair):
-    keypair._public_key = keypair.public_key
+def _remove_private_key(keypair):
+    keypair._cached_public_key = keypair._public_key
     keypair._private_key = None
 
 
@@ -26,7 +26,7 @@ def _generate_keypair(private=True):
     ret.identity = str(uuid.uuid4())
 
     if not private:
-        _remove_secret(ret)
+        _remove_private_key(ret)
 
     return ret
 

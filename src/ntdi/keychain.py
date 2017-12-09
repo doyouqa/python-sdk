@@ -224,7 +224,7 @@ class Keypair(BaseKeypair):
         super(Keypair, self).__init__(*args, **kwargs)
 
         self._private_key = None
-        self._public_key = None
+        self._cached_public_key = None
 
         if kwargs.get('secret_bytes') and \
                 isinstance(kwargs['secret_bytes'], ec.EllipticCurvePrivateKey):
@@ -232,6 +232,17 @@ class Keypair(BaseKeypair):
 
     def _load_secret_bytes(self, secret_bytes):
         self._private_key = secret_bytes
+
+    @property
+    def _public_key(self):
+        """
+        If the private key is defined, generate the public key
+
+        :return:
+        """
+        if not self._cached_public_key:
+            self._cached_public_key = self._private_key.public_key()
+        return self._cached_public_key
 
     @property
     def is_secret(self):
@@ -330,7 +341,7 @@ class Keypair(BaseKeypair):
 
         if public_bytes:
             ret = cls()
-            ret._public_key = load_pem_public_key(public_bytes, _BACKEND)
+            ret._cached_public_key = load_pem_public_key(public_bytes, _BACKEND)
 
         return ret
 
@@ -357,7 +368,7 @@ class Keypair(BaseKeypair):
         pub = load_der_public_key(public_key, _BACKEND)
 
         new_token = cls()
-        new_token._public_key = pub
+        new_token._cached_public_key = pub
 
         return new_token
 
@@ -380,7 +391,7 @@ class Keypair(BaseKeypair):
         )
 
         ret = cls()
-        ret._public_key = public_numbers.public_key(_BACKEND)
+        ret._cached_public_key = public_numbers.public_key(_BACKEND)
 
         if 'd' in jwk:
             private_numbers = ec.EllipticCurvePrivateNumbers(
@@ -395,7 +406,7 @@ class Keypair(BaseKeypair):
         return ret
 
     def get_jwk(self, include_secret):
-        public_numbers = self.public_key.public_numbers()
+        public_numbers = self._public_key.public_numbers()
         ret = {
           "kty": "EC",
           "alg": "ES256",
@@ -430,7 +441,7 @@ class Keypair(BaseKeypair):
         """
         try:
             signature = encode_dss_signature(r, s)
-            self.public_key.verify(signature, utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
+            self._public_key.verify(signature, utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
         except:  # noqa: E722
             logger.debug('invalid signature', exc_info=True)
             raise exceptions.InvalidSignatureError
@@ -451,19 +462,7 @@ class Keypair(BaseKeypair):
         return decode_dss_signature(dss_sig)
 
     def raw_ecdh(self, peer_keypair):
-        return self._private_key.exchange(ec.ECDH(), peer_keypair.public_key)
-
-    @property
-    def public_key(self):
-        """
-        If the private key is defined, generate the public key
-
-        :return:
-        """
-        if self._public_key:
-            return self._public_key
-        elif self._private_key:
-            return self._private_key.public_key()
+        return self._private_key.exchange(ec.ECDH(), peer_keypair._public_key)
 
     @property
     def public_key_der(self):
@@ -472,7 +471,7 @@ class Keypair(BaseKeypair):
 
         :return: Public Key in DER format
         """
-        return self.public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+        return self._public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
     @property
     def public_key_pem(self):
@@ -481,7 +480,7 @@ class Keypair(BaseKeypair):
 
         :return: Public Key in PEM format
         """
-        return self.public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+        return self._public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
 
 
 def _len_bytes(data):

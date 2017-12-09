@@ -9,8 +9,6 @@ import binascii
 import logging
 import unittest
 
-from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
-
 from ntdi import keychain, service, utils, exceptions
 
 logger = logging.getLogger(__name__)
@@ -226,19 +224,6 @@ class TestKeypair(unittest.TestCase):
 
         with self.assertRaises(exceptions.InvalidFormatError):
             public_keypair.sign(b'anything')
-
-    def test_public_key(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        pubkeypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsInstance(pubkeypair.public_key, EllipticCurvePublicKey)
-
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        seckeypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(seckeypair.public_key, EllipticCurvePublicKey)
-
-        # for branch coverage
-        nullkeypair = keychain.Keypair()
-        self.assertIsNone(nullkeypair.public_key)
 
     def test_public_key_der(self):
         der = base64.b64decode(
