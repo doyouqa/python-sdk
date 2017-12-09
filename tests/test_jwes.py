@@ -11,7 +11,7 @@ import logging
 
 from unittest import TestCase
 
-from ntdi import jwes, nonces, service, exceptions, utils
+from ntdi import jwes, nonces, keychain, exceptions, utils
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def _remove_private_key(keypair):
 
 
 def _generate_keypair(private=True):
-    ret = service.create_secret_key()
+    ret = keychain.create_private_keypair()
     ret.identity = str(uuid.uuid4())
 
     if not private:
@@ -40,7 +40,7 @@ class TestJWEs(TestCase):
         self.claim_keys = ['a', 'b', 'c', 'héllo!', '😬']
         self.raw_claims = {k: 0 for k in self.claim_keys}
 
-        self.sender_keypair = service.create_secret_key()
+        self.sender_keypair = keychain.create_private_keypair()
         self.sender_keypair.identity = str(uuid.uuid4())
 
         self.recipient_keypairs = []
@@ -108,7 +108,7 @@ class TestJWEs(TestCase):
 
     def test_anonymous_sender(self):
         with self.assertRaises(exceptions.IdentityRequired):
-            sender_keypair = service.create_secret_key()
+            sender_keypair = keychain.create_private_keypair()
             jwes.make_jwe(self.raw_claims, sender_keypair, self.recipient_keypairs)
 
     def test_anonymous_recipient(self):

@@ -21,7 +21,7 @@ def _handle_auth_endpoint(headers=None, data=None, allow_multiple=False):
     logger.debug('data=%s', data)
 
     try:
-        core_key = keychain.Keypair.from_secret_pem(
+        core_key = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.core_key_bytes,
         )
         core_key.identity = 'NTDI Core'
@@ -156,7 +156,7 @@ class TestBaseSession(unittest.TestCase):
 class TestDeviceSession(unittest.TestCase):
     def setUp(self):
         nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
-        self.mock_id_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_id_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.id_key_bytes
         )
         self.mock_id_keypair.identity = 'device-id'
@@ -166,7 +166,7 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_id_keypair
         )
 
-        self.mock_proj_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_proj_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.proj_key_bytes
         )
         self.mock_proj_keypair.identity = 'proj-id'
@@ -176,7 +176,7 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_proj_keypair
         )
 
-        self.mock_core_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_core_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.core_key_bytes
         )
         self.mock_core_keypair.identity = 'ntdi-core-id'
@@ -186,7 +186,7 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_core_keypair
         )
 
-        mock_peer_keypair = keychain.Keypair.from_secret_pem(
+        mock_peer_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.alt_key_bytes
         )
         mock_peer_keypair.identity = 'peer'
@@ -195,7 +195,7 @@ class TestDeviceSession(unittest.TestCase):
             mock_peer_keypair.identity, mock_peer_keypair
         )
 
-        self.mock_resetA_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_resetA_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_A_bytes
         )
         self.mock_resetA_keypair.identity = 'resetA-id'
@@ -205,7 +205,7 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_resetA_keypair
         )
 
-        self.mock_resetB_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_resetB_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_B_bytes
         )
         self.mock_resetB_keypair.identity = 'resetB-id'
@@ -215,7 +215,7 @@ class TestDeviceSession(unittest.TestCase):
             self.mock_resetB_keypair
         )
 
-        self.mock_resetC_keypair = keychain.Keypair.from_secret_pem(
+        self.mock_resetC_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_C_bytes
         )
         self.mock_resetC_keypair.identity = 'resetC-id'
@@ -343,7 +343,7 @@ class TestDeviceSession(unittest.TestCase):
 class TestServerSession(unittest.TestCase):
     def setUp(self):
         nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
-        mock_keypair = keychain.Keypair.from_secret_pem(
+        mock_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.id_key_bytes
         )
         mock_keypair.identity = 'id'
@@ -351,7 +351,7 @@ class TestServerSession(unittest.TestCase):
             mock_keypair.identity, mock_keypair
         )
 
-        mock_core_keypair = keychain.Keypair.from_secret_pem(
+        mock_core_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.core_key_bytes
         )
         mock_core_keypair.identity = 'NTDI Core'
@@ -359,7 +359,7 @@ class TestServerSession(unittest.TestCase):
             mock_core_keypair.identity, mock_core_keypair
         )
 
-        mock_alt_keypair = keychain.Keypair.from_secret_pem(
+        mock_alt_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.alt_key_bytes
         )
         mock_alt_keypair.identity = 'alt'
@@ -367,14 +367,14 @@ class TestServerSession(unittest.TestCase):
             mock_alt_keypair.identity, mock_alt_keypair
         )
 
-        mock_fleet_keypair = keychain.Keypair.from_secret_pem(
+        mock_fleet_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.proj_key_bytes
         )
         mock_fleet_keypair.identity = 'proj'
         self.fleet_credentials = keychain.Credentials(
             mock_fleet_keypair.identity, mock_fleet_keypair
         )
-        mock_resetA_keypair = keychain.Keypair.from_secret_pem(
+        mock_resetA_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_A_bytes
         )
         mock_resetA_keypair.identity = 'resetA-id'
@@ -382,7 +382,7 @@ class TestServerSession(unittest.TestCase):
             mock_resetA_keypair.identity, mock_resetA_keypair
         )
 
-        mock_resetB_keypair = keychain.Keypair.from_secret_pem(
+        mock_resetB_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_B_bytes
         )
         mock_resetB_keypair.identity = 'resetB-id'
@@ -390,7 +390,7 @@ class TestServerSession(unittest.TestCase):
             mock_resetB_keypair.identity, mock_resetB_keypair
         )
 
-        mock_resetC_keypair = keychain.Keypair.from_secret_pem(
+        mock_resetC_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.reset_key_C_bytes
         )
         mock_resetC_keypair.identity = 'resetC-id'
@@ -739,11 +739,11 @@ class TestServerSession(unittest.TestCase):
 
 class TestAdminSession(unittest.TestCase):
     def setUp(self):
-        mock_keypair = keychain.Keypair.from_secret_pem(
+        mock_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.id_key_bytes
         )
         self.credentials = keychain.Credentials('me', mock_keypair)
-        mock_fleet_keypair = keychain.Keypair.from_secret_pem(
+        mock_fleet_keypair = keychain.Keypair.from_private_pem(
             key_bytes=TestSession.proj_key_bytes
         )
 

@@ -61,10 +61,10 @@ Answer 'Y' at this step.
 You will be given the Fleet ID and three keys.
 The first key is a Neustar TDI verification public key.
 The second is the Fleet verification public key.
-The third is your Fleet **SECRET** key.
+The third is your **SECRET** Fleet signing key.
 
 .. danger::
-  SAVE THE FLEET SECRET KEY IN A SAFE PLACE.
+  SAVE THE FLEET PRIVATE KEY IN A SAFE PLACE.
   If you lose this key, you will lose your ability to send authenticated messages`
   to your devices.
 
@@ -95,13 +95,13 @@ This will generate a new **SECRET** ``.pem`` file.
    PLEASE STORE SECRET FILES IN A SAFE PLACE. Never post them in a public forum
    or give them to anyone.
 
-If you created the server secret key on your personal computer, we need to copy it over to the
+If you created the server private key on your personal computer, we need to copy it over to the
 server along with the Fleet key that was generated when you first created the Fleet.
 
 .. code:: console
 
-    $ scp /Users/me/secret/server_secret.pem ubuntu@10.1.2.3:/home/www/server_secret.pem
-    $ scp /Users/me/secret/fleet_secret.pem ubuntu@10.1.2.3:/home/www/fleet_secret.pem
+    $ scp /Users/me/secret/server_private.pem ubuntu@10.1.2.3:/home/www/server_private.pem
+    $ scp /Users/me/secret/fleet_private.pem ubuntu@10.1.2.3:/home/www/fleet_private.pem
     $ scp /Users/me/secret/core_fleet_public.pem ubuntu@10.1.2.3:/home/www/core_fleet_public.pem
 
 In Python, we're just going to hardcode the path to these keys for quick access.
@@ -126,23 +126,23 @@ In Python, we're just going to hardcode the path to these keys for quick access.
     # Unique Server ID,
     SERVER_ID = '709ec376-7e8c-40fc-94ee-14887023c885'
 
-    # Secret keys we downloaded from Neustar TDI Developer Portal
-    server_secret_key_path = (
+    # Private keys we created for the Fleet and Fleet Server
+    server_private_key_path = (
         './fleet-{pid}/server-{sid}/server-{sid}-priv.pem'.format(
             pid=FLEET_ID, sid=SERVER_ID
         )
     )
-    fleet_secret_key_path = (
+    fleet_private_key_path = (
         './fleet-{pid}/fleet-{pid}-priv.pem'.format(
             pid=FLEET_ID, sid=SERVER_ID
         )
     )
 
-    server_key = Keypair.from_secret_pem(path=server_secret_key_path)
+    server_key = Keypair.from_private_pem(path=server_private_key_path)
     server_key.identity = SERVER_ID
     server_credentials = Credentials(SERVER_ID, server_key)
 
-    fleet_key = Keypair.from_secret_pem(path=fleet_secret_key_path)
+    fleet_key = Keypair.from_private_pem(path=fleet_private_key_path)
     fleet_key.identity = CORE_FLEET_ID
     fleet_credentials = Credentials(FLEET_ID, fleet_key)
 
@@ -172,7 +172,7 @@ Just like we did with the server, we need to provision our IoT device.
 
 
 Now we need to copy over the Neustar TDI verifier key, Fleet verifier key and the
-new device secret key. The Neustar TDI verifier key can be downloaded
+new device private key. The Neustar TDI verifier key can be downloaded
 from the `Neustar TDI developer console`_.
 
 You can print out your Fleet verifier key by adding a snippet to the previous code
@@ -185,12 +185,12 @@ example.
    print(fleet_verifier)
 
 If you can SSH into your IoT device, you can do the same thing that we did with the server
-and copy over the device identity secret key. Since the Neustar TDI and Fleet verifier keys
+and copy over the device identity private key. Since the Neustar TDI and Fleet verifier keys
 are static for all devices in a Fleet, we can hard code them in.
 
 .. code:: console
 
-    $ scp /Users/me/secret/device_secret.pem edison@10.1.2.3:/home/root/device_secret.pem
+    $ scp /Users/me/secret/device_private.pem edison@10.1.2.3:/home/root/device_private.pem
 
 Now that we have the message that was sent to the IoT device, let's check the message's authenticity
 by verifying the digital signatures.

@@ -11,7 +11,7 @@ import logging
 
 from unittest import TestCase
 
-from ntdi import jose, jwes, jwts, service, nonces, utils, exceptions
+from ntdi import jose, jwes, jwts, keychain, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class TestIsJWS(TestCase):
         self.claim_keys = ['a', 'b', 'c', 'héllo!', '😬']
         self.raw_claims = {k: 0 for k in self.claim_keys}
 
-        self.keypair = service.create_secret_key()
+        self.keypair = keychain.create_private_keypair()
         self.keypair.identity = str(uuid.uuid4())
 
         self.jws = jwts.make_jws(self.raw_claims, self.keypair)
@@ -59,10 +59,10 @@ class TestIsJWE(TestCase):
         self.claim_keys = ['a', 'b', 'c', 'héllo!', '😬']
         self.raw_claims = {k: 0 for k in self.claim_keys}
 
-        self.sender_keypair = service.create_secret_key()
+        self.sender_keypair = keychain.create_private_keypair()
         self.sender_keypair.identity = str(uuid.uuid4())
 
-        self.recipient_keypair = service.create_secret_key()
+        self.recipient_keypair = keychain.create_private_keypair()
         self.recipient_keypair.identity = str(uuid.uuid4())
 
         self.jwe = jwes.make_jwe(self.raw_claims, self.sender_keypair, self.recipient_keypair)

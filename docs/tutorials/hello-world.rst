@@ -3,16 +3,16 @@ Hello World
 
 Here is a simple "hello world" message with a digital signature and verified.
 
-Before we can sign or verify any messages, we first need to create a secret key.
+Before we can sign or verify any messages, we first need to create a private key.
 
 .. code:: python
 
     from ntdi import service
-    # Directory to save the secret key (should be secure enclave)
-    secret_key_pem_path = '/Users/me/my_secret_key.pem'
-    service.create_secret_key(output=secret_key_pem_path)
+    # Directory to save the private key (should be secure enclave)
+    private_key_pem_path = '/Users/me/my_private_key.pem'
+    keychain.create_private_keypair(output=private_key_pem_path)
 
-You should now have a secret key pem file that begins with ``-----BEGIN PRIVATE KEY-----``
+You should now have a private key pem file that begins with ``-----BEGIN PRIVATE KEY-----``
 
 Now we can create our "hello world" message and sign it.
 
@@ -22,7 +22,7 @@ Now we can create our "hello world" message and sign it.
 
     message = 'hello world'
 
-    my_key = Keypair.from_secret_pem(path=secret_key_pem_path)
+    my_key = Keypair.from_private_pem(path=private_key_pem_path)
     signature = my_key.sign(message)
     print(signature)
 

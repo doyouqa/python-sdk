@@ -101,23 +101,23 @@ def run_aes_keys_tasks(count):
 
     with operations_timer(count, 'AES keys'):
         for _ in range(count):
-            ntdi.service.create_aes_key()
+            ntdi.symcrypt.create_aes_key()
 
 
 def run_symmetric_tasks(data_size, count):
     print('Encrypting/Decrypting {} {}-byte random message(s)'.format(count, data_size))
 
-    key = ntdi.service.create_aes_key()
+    key = ntdi.symcrypt.create_aes_key()
     data = os.urandom(data_size)
-    edata = ntdi.service.encrypt_attr_value(data, key)
+    edata = ntdi.symcrypt.aes_encrypt(data, key)
 
     with operations_timer(count, 'encryptions'):
         for _ in range(count):
-            ntdi.service.encrypt_attr_value(data, key)
+            ntdi.symcrypt.aes_encrypt(data, key)
 
     with operations_timer(count, 'decryptions'):
         for _ in range(count):
-            ntdi.service.decrypt_attr_value(edata, key)
+            ntdi.symcrypt.aes_decrypt(edata, key)
 
 
 def run_ecdsa_key_tasks(count):
@@ -125,13 +125,13 @@ def run_ecdsa_key_tasks(count):
 
     with operations_timer(count, 'ECDSA keys'):
         for _ in range(count):
-            ntdi.service.create_secret_key()
+            ntdi.keychain.create_private_keypair()
 
 
 def run_asymmetric_tasks(data_size, count):
     print('Signing/Verifying {:,d} {:,d}-byte random messages'.format(count, data_size))
 
-    keypair = ntdi.service.create_secret_key()
+    keypair = ntdi.keychain.create_private_keypair()
     data = os.urandom(data_size)
     sig = keypair.sign(data)
 
@@ -148,7 +148,7 @@ def run_asymmetric_tasks(data_size, count):
 def run_jwt_tasks(data_size, count):
     print('Creating/Verifying {:,d} JWTs with {:,d}-byte random payloads'.format(count, data_size))
 
-    keypair = ntdi.service.create_secret_key()
+    keypair = ntdi.keychain.create_private_keypair()
     data = {'d': base64.b64encode(os.urandom(data_size)).decode('utf-8')[:data_size]}
     jwt = ntdi.jwts.make_jwt(data, keypair)
 

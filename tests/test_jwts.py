@@ -15,7 +15,7 @@ import logging
 
 from unittest import TestCase
 
-from ntdi import service, keychain, jwts, nonces, utils, exceptions
+from ntdi import keychain, jwts, nonces, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class TestJWTs(TestCase):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
         nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
-        self.keypair = service.create_secret_key()
+        self.keypair = keychain.create_private_keypair()
 
     def tearDown(self):
         nonces.set_nonce_handlers(
@@ -59,7 +59,7 @@ class TestJWTs(TestCase):
             self._create_and_verify_good_jwt({'message': msg})
 
     def test_keypair_identity(self):
-        keypair = service.create_secret_key()
+        keypair = keychain.create_private_keypair()
         keypair.identity = '1234'
         self._create_and_verify_good_jwt({'message': MSGS[0]}, keypair=keypair)
 
@@ -82,7 +82,7 @@ class TestJWTs(TestCase):
             '18Uo2vYWGizuUlAjqPHbsAPwDiabQ-nD89JP0rdBL0pTo7kMacPZlcA2YIuSDWHx2'
             'tqrRXwY49EqqW6Pz6LaTw'
         )
-        pri = keychain.Keypair.from_secret_der(base64.b64decode(sec_der))
+        pri = keychain.Keypair.from_private_der(base64.b64decode(sec_der))
         self.assertTrue(jwts.verify_jwt(token, pri))
 
         pub = keychain.Keypair.from_public_der(base64.b64decode(pub_der))
@@ -105,7 +105,7 @@ class TestJWTs(TestCase):
             'v3_X8LMCejnwbt_832vvkA'
         )
 
-        pri = keychain.Keypair.from_secret_der(base64.b64decode(sec_der))
+        pri = keychain.Keypair.from_private_der(base64.b64decode(sec_der))
         self.assertTrue(jwts.verify_jwt(token, pri))
 
         pub = keychain.Keypair.from_public_der(base64.b64decode(pub_der))
@@ -129,7 +129,7 @@ class TestJWTs(TestCase):
             jwts.make_jwt(lambda a: a, self.keypair)
 
     def test_jwt_wrong_key(self):
-        new_keypair = service.create_secret_key()
+        new_keypair = keychain.create_private_keypair()
         msg = 'bad jwt here❌'
 
         with self.assertRaises(exceptions.InvalidSignatureError):
@@ -366,7 +366,7 @@ class TestKnownJWTs(TestCase):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
         nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
-        self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
+        self.keypair = keychain.Keypair.from_private_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
             'joBvC7Cf4JR/LP7lECAc0mNfokw84+pLurAkP2rG1Y63n9KPwntflfRD='
@@ -458,7 +458,7 @@ class TestJWSs(TestCase):
         self.keypairs = []
 
         for _ in range(3):
-            key = service.create_secret_key()
+            key = keychain.create_private_keypair()
             key.identity = str(uuid.uuid4())
             self.keypairs.append(key)
 
@@ -574,7 +574,7 @@ class TestJWSs(TestCase):
         self._create_and_verify_good_jws({'hello': 7}, self.keypairs[0])
 
     def test_missing_keypair_identity(self):
-        keypair = service.create_secret_key()
+        keypair = keychain.create_private_keypair()
 
         with self.assertRaises(exceptions.InvalidKeyError):
             jwts.make_jws({"hi": 7}, keypair)
@@ -613,7 +613,7 @@ class TestJWSs(TestCase):
         self.assertIsInstance(verified_msg, dict)
 
     def test_extend_jws_signatures_from_jwt_no_kid(self):
-        keypair = service.create_secret_key()
+        keypair = keychain.create_private_keypair()
         kid = str(uuid.uuid4())
 
         jwt = jwts.make_jwt({'a': 1}, keypair)
@@ -625,7 +625,7 @@ class TestJWSs(TestCase):
         self.assertIsInstance(verified_msg, dict)
 
     def test_extend_jws_missing_keypair_identity(self):
-        keypair = service.create_secret_key()
+        keypair = keychain.create_private_keypair()
         jws = jwts.make_jws({'a': 1}, self.keypairs[0])
 
         with self.assertRaises(exceptions.InvalidKeyError):
@@ -892,7 +892,7 @@ class TestKnownJWSs(TestCase):
         self.tmpdir = tempfile.mkdtemp()
         os.environ['HOME'] = self.tmpdir
         nonces.set_nonce_handlers(lambda _n: True, lambda _n: True)
-        self.keypair = keychain.Keypair.from_secret_der(base64.b64decode(
+        self.keypair = keychain.Keypair.from_private_der(base64.b64decode(
             'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOiXcCrreAqzw3xOT'
             'L44O8DFyDfBAPQgZ0AmPGZfWmMShRANCAARD66FPRWFIFrNcn+DjLTSb8lP3pha3'
             'joBvC7Cf4JR/LP7lECAc0mNfokw84+pLurAkP2rG1Y63n9KPwntflfRD='

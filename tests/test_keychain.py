@@ -9,19 +9,21 @@ import binascii
 import logging
 import unittest
 
-from ntdi import keychain, service, utils, exceptions
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import (
+    load_der_public_key, load_der_private_key,
+    Encoding, PublicFormat,
+)
+from ntdi import keychain, utils, exceptions
 
 logger = logging.getLogger(__name__)
-
-
-def _private_to_public(private_keypair):
-    return keychain.Keypair.from_public_der(private_keypair.public_key_der)
 
 
 class TestCredentials(unittest.TestCase):
     def setUp(self):
         self.uuid = uuid.uuid4()
-        self.keypair = service.create_secret_key()
+        self.keypair = keychain.create_private_keypair()
 
     def test_basic_object(self):
         creds = keychain.Credentials(self.uuid, self.keypair)
@@ -98,287 +100,94 @@ class TestFleetCredentials(TestCredentials):
             )
 
 
+_BACKEND = default_backend()
+
+
+class _SimpleTestKeypair(keychain.BaseKeypair):
+
+    def __init__(self, value=None, der=None):
+
+        if value:
+            self._private = ec.derive_private_key(value, ec.SECP256R1(), _BACKEND)
+        elif der:
+            self._private = load_der_private_key(der, None, _BACKEND)
+        else:
+            self._private = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
+
+        self._public = self._private.public_key()
+        self._otherinfo = None
+
+    @property
+    def is_private(self):
+        return self._private is not None
+
+    def calc_ecdh_otherinfo(self, algorithm, party_u_info, party_v_info):
+
+        # allow injection of otherinfo
+        if self._otherinfo:
+            return self._otherinfo
+
+        return super(_SimpleTestKeypair, self).calc_ecdh_otherinfo(
+            algorithm, party_u_info, party_v_info,
+        )
+
+    def raw_ecdh(self, peer_keypair):
+        return self._private.exchange(ec.ECDH(), peer_keypair._public)
+
+
+class _SimpleTestPublicKeypair(keychain.BaseKeypair):
+
+    def __init__(self, xy=None, der=None):
+
+        if xy:
+            x, y = xy
+            self._public = ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1()).public_key(_BACKEND)
+        elif der:
+            self._public = load_der_public_key(der, _BACKEND)
+        else:
+            self._public = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
+
+    @property
+    def is_private(self):
+        return False
+
+
 class TestBaseKeypair(unittest.TestCase):
 
+    def _private_to_public(self, private_keypair):
+        ret = _SimpleTestKeypair()
+        ret._public = private_keypair._public
+        ret._private = None
+        return ret
+
     def test_pem_construction(self):
-        std_keypair = service.create_secret_key()
+        std_private_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
+        std_der = std_private_key.public_key().public_bytes(
+            Encoding.DER, PublicFormat.SubjectPublicKeyInfo,
+        )
+        std_pem = std_private_key.public_key().public_bytes(
+            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo,
+        )
 
         class MyKeypair(keychain.BaseKeypair):
             @property
             def public_key_der(self):
-                return std_keypair.public_key_der
+                return std_der
 
         my_keypair = MyKeypair()
 
-        self.assertEqual(std_keypair.public_key_pem, my_keypair.public_key_pem)
-
-
-class TestKeypair(unittest.TestCase):
-    BASE_PATH = os.path.dirname(__file__)
-    x509_PATH = os.path.join(BASE_PATH, 'x509')
-
-    def test_is_secret(self):
-        keypair = service.create_secret_key()
-        self.assertTrue(keypair.is_secret)
-
-        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
-        self.assertFalse(public_keypair.is_secret)
-
-    def test_load_pem_path(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_path_pkcs8(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_pkcs8_private_key.pem')
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_path_missing(self):
-        pem_path = None
-        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
-            pem_path = tf.name
-        keypair = keychain.Keypair.from_secret_pem(path=pem_path)
-        self.assertIsNone(keypair)
-
-    def test_load_pem_bytes(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        with open(pem_path, 'rb') as f:
-            pem_data = f.read()
-            keypair = keychain.Keypair.from_secret_pem(key_bytes=pem_data)
-            self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_bytes_pkcs8(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_pkcs8_private_key.pem')
-        with open(pem_path, 'rb') as f:
-            pem_data = f.read()
-            keypair = keychain.Keypair.from_secret_pem(key_bytes=pem_data)
-            self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_pem_public_path(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        keypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_public_pem_bytes(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        with open(pem_path, 'rb') as f:
-            pem_data = f.read()
-            keypair = keychain.Keypair.from_public_pem(key_bytes=pem_data)
-            self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_load_public_pem_path_missing(self):
-        pem_path = None
-        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
-            pem_path = tf.name
-
-        keypair = keychain.Keypair.from_public_pem(path=pem_path)
-        self.assertIsNone(keypair)
-
-    def test_load_der_bytes(self):
-        der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
-        with open(der_path, 'rb') as f:
-            der_data = f.read()
-            keypair = keychain.Keypair.from_secret_der(der_data)
-            self.assertIsInstance(keypair, keychain.Keypair)
-
-    def test_export_pem(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        with open(pem_path, 'rb') as f:
-            pem_bytes = f.read()
-            token = keychain.Keypair.from_secret_pem(key_bytes=pem_bytes)
-            self.assertEqual(token.secret_as_pem, pem_bytes)
-
-    def test_export_secret_pem_from_public(self):
-        keypair = service.create_secret_key()
-        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
-
-        with self.assertRaises(exceptions.InvalidFormatError):
-            public_keypair.secret_as_pem
-
-    def test_export_der(self):
-        der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
-        with open(der_path, 'rb') as f:
-            der_bytes = f.read()
-            token = keychain.Keypair.from_secret_der(der_bytes)
-            self.assertEqual(token.secret_as_der, der_bytes)
-
-    def test_export_secret_der_from_public(self):
-        keypair = service.create_secret_key()
-        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
-
-        with self.assertRaises(exceptions.InvalidFormatError):
-            public_keypair.secret_as_der
-
-    def test_sign_verify(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
-        with open(pem_path, 'rb') as f:
-            pem_bytes = f.read()
-            token = keychain.Keypair.from_secret_pem(key_bytes=pem_bytes)
-            r, s = token.sign(b'MESSAGE')
-            self.assertTrue(token.verify(b"MESSAGE", r, s))
-
-    def test_sign_with_public(self):
-        keypair = service.create_secret_key()
-        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
-
-        with self.assertRaises(exceptions.InvalidFormatError):
-            public_keypair.sign(b'anything')
-
-    def test_public_key_der(self):
-        der = base64.b64decode(
-            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
-            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
-        )
-        keypair = keychain.Keypair.from_public_der(der)
-        self.assertEqual(keypair.public_key_der, der)
-
-    def test_public_key_pem(self):
-        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
-        with open(pem_path, 'rb') as f:
-            pem = f.read()
-            keypair = keychain.Keypair.from_public_pem(pem)
-            self.assertEqual(keypair.public_key_pem, pem)
-
-    def test_private_jwk(self):
-        keypair = service.create_secret_key()
-        jwk = keypair.jwk
-        self.assertIn('kty', jwk)
-        self.assertIn('crv', jwk)
-        self.assertIn('x', jwk)
-        self.assertIn('y', jwk)
-        self.assertIn('d', jwk)
-
-        self.assertNotIn('kid', jwk)
-
-        self.assertEqual(jwk['kty'], 'EC')
-        self.assertEqual(jwk['crv'], 'P-256')
-
-        self.assertEqual(jwk, keypair.jwk_private)
-        self.assertNotEqual(jwk, keypair.jwk_public)
-
-    def test_jwk_with_identity(self):
-        keypair = service.create_secret_key()
-        jwk = keypair.jwk
-
-        self.assertNotIn('kid', jwk)
-
-        identity = str(uuid.uuid4())
-        keypair.identity = identity
-
-        jwk = keypair.jwk
-        self.assertIn('kid', jwk)
-
-        self.assertEqual(identity, jwk['kid'])
-
-    def test_public_jwk(self):
-        der = base64.b64decode(
-            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
-            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
-        )
-        keypair = keychain.Keypair.from_public_der(der)
-        jwk = keypair.jwk
-        self.assertIn('kty', jwk)
-        self.assertIn('crv', jwk)
-        self.assertIn('x', jwk)
-        self.assertIn('y', jwk)
-        self.assertNotIn('d', jwk)
-
-        self.assertNotIn('kid', jwk)
-
-        self.assertEqual(jwk['kty'], 'EC')
-        self.assertEqual(jwk['crv'], 'P-256')
-
-        self.assertEqual(jwk, keypair.jwk_public)
-
-        with self.assertRaises(exceptions.InvalidFormatError):
-            keypair.jwk_private
-
-    def test_from_private_jwk(self):
-        keypair = service.create_secret_key()
-        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
-        self.assertEqual(keypair.secret_as_der, keypair2.secret_as_der)
-        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
-
-    def test_from_private_jwk_with_identity(self):
-        keypair = service.create_secret_key()
-        jwk = keypair.jwk
-
-        keypair2 = keychain.Keypair.from_jwk(jwk)
-        self.assertIsNone(keypair2.identity)
-
-        identity = str(uuid.uuid4())
-        jwk['kid'] = identity
-
-        keypair3 = keychain.Keypair.from_jwk(jwk)
-        self.assertIsNotNone(keypair3.identity)
-        self.assertEqual(identity, keypair3.identity)
-
-    def test_from_public_jwk(self):
-        der = base64.b64decode(
-            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
-            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
-        )
-        keypair = keychain.Keypair.from_public_der(der)
-        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
-        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
-
-    def test_from_invalid_jwk_type(self):
-        keypair = service.create_secret_key()
-        jwk = keypair.jwk
-        jwk['kty'] = 'RSA'
-        with self.assertRaises(ValueError):
-            keypair = keychain.Keypair.from_jwk(jwk)
-
-    def test_from_invalid_jwk_curve(self):
-        keypair = service.create_secret_key()
-        jwk = keypair.jwk
-        jwk['crv'] = 'P-384'
-        with self.assertRaises(ValueError):
-            keypair = keychain.Keypair.from_jwk(jwk)
-
-    def test_ecdh(self):
-        ue_jwk = {
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "gI0GAILBdu7T53akrFmMyGcsF3n5dO7MmwNBHKW5SV0",
-            "y": "SLW_xSffzlPWrHEVI30DHM_4egVwt3NQqeUD7nMFpps",
-            "d": "0_NxaRPUMQoAJt50Gz8YiTr8gRTwyEaCumd-MToTmIo",
-        }
-        apu = 'Alice'
-        u_private_keypair = keychain.Keypair.from_jwk(ue_jwk)
-        u_public_keypair = _private_to_public(u_private_keypair)
-        v_jwk = {
-            "kty": "EC",
-            "crv": "P-256",
-            "x": "weNJy2HscCSM6AEDTDg04biOvhFhyyWvOHQfeF_PxMQ",
-            "y": "e8lnCO-AlStT-NJVX-crhB7QRYhiix03illJOVAOyck",
-            "d": "VEmDZpDXXK8p8N0Cndsxs924q6nS1RXFASRl6BfUqdw",
-        }
-        apv = 'Bob'
-        v_private_keypair = keychain.Keypair.from_jwk(v_jwk)
-        v_public_keypair = _private_to_public(v_private_keypair)
-
-        ku = u_private_keypair.ecdh(v_public_keypair, party_u_info=apu, party_v_info=apv)
-        kv = v_private_keypair.ecdh(u_public_keypair, party_u_info=apu, party_v_info=apv)
-
-        self.assertEqual(len(ku), 32)
-        self.assertEqual(ku, kv)
-
-        eve_keypair = service.create_secret_key()
-        keve = eve_keypair.ecdh(u_private_keypair, party_u_info=apu, party_v_info=apv)
-        self.assertNotEqual(ku, keve)
+        self.assertEqual(std_pem, my_keypair.public_key_pem)
 
     def test_ecdh_empty_apuv(self):
-        u_keypair = service.create_secret_key()
-        v_keypair = service.create_secret_key()
+        u_keypair = _SimpleTestKeypair()
+        v_keypair = _SimpleTestKeypair()
 
         ku = u_keypair.ecdh(v_keypair)
         kv = v_keypair.ecdh(u_keypair)
 
         self.assertEqual(ku, kv)
 
-        eve_keypair = service.create_secret_key()
+        eve_keypair = _SimpleTestKeypair()
         keve = eve_keypair.ecdh(u_keypair)
         self.assertNotEqual(ku, keve)
 
@@ -387,8 +196,8 @@ class TestKeypair(unittest.TestCase):
             'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
             'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
         )
-        keypair = keychain.Keypair.from_public_der(der)
-        keypair2 = service.create_secret_key()
+        keypair = _SimpleTestPublicKeypair(der=der)
+        keypair2 = _SimpleTestKeypair()
 
         with self.assertRaises(exceptions.InvalidFormatError):
             keypair.ecdh(keypair2)
@@ -398,7 +207,7 @@ class TestKeypair(unittest.TestCase):
         #       KASValidityTest_ECCOnePassDH_KDFConcat_KC_init_rcpt_ulat.fax
         #   [CCM AES256] (line 20702)
         #
-        _CAVS_VECTORS = [
+        _CAVS_ECDH_VECTORS = [
             {
                 "COUNT": "0",
                 "dsCAVS": "6d54ae0f8647c2eec0a2c2af60b56ce05d4695b9c0e7320448c6fd53cac7aa85",
@@ -893,42 +702,20 @@ class TestKeypair(unittest.TestCase):
             # Not sure why COUNT=29 works, when it shouldn't, may be testing key validation
         ]
 
-        class _TestKeypair(keychain.Keypair):
-            def calc_ecdh_otherinfo(self, algorithm, party_u_info, party_v_info):
-                return self._otherinfo
-
-        for vec in _CAVS_VECTORS:
+        for vec in _CAVS_ECDH_VECTORS:
             logger.debug('COUNT=%s, Result=%s/%s', vec['COUNT'], vec['Result'], vec['errno'])
             otherinfo = bytes(bytearray.fromhex(vec['OI']))
 
-            ue_jwk = {
-                "kty": "EC",
-                "crv": "P-256",
-                "x": utils.base64url_encode(bytearray.fromhex(vec['QeIUTx'])),
-                "y": utils.base64url_encode(bytearray.fromhex(vec['QeIUTy'])),
-                "d": utils.base64url_encode(bytearray.fromhex(vec['deIUT'])),
-            }
-            u_private_keypair = _TestKeypair.from_jwk(ue_jwk)
+            u_private_keypair = _SimpleTestKeypair(value=int(vec['deIUT'], 16))
             u_private_keypair._otherinfo = otherinfo
-            u_public_keypair = _private_to_public(u_private_keypair)
-
-            vs_jwk = {
-                "kty": "EC",
-                "crv": "P-256",
-                "x": utils.base64url_encode(bytearray.fromhex(vec['QsCAVSx'])),
-                "y": utils.base64url_encode(bytearray.fromhex(vec['QsCAVSy'])),
-                "d": utils.base64url_encode(bytearray.fromhex(vec['dsCAVS'])),
-            }
+            u_public_keypair = self._private_to_public(u_private_keypair)
 
             if not vec['Result'] and vec['errno'] in [1, 2]:
-                with self.assertRaises(ValueError):
-                    v_private_keypair = _TestKeypair.from_jwk(vs_jwk)
-                    v_private_keypair._otherinfo = otherinfo
-                    # v_public_keypair = _private_to_public(v_private_keypair)
+                pass  # this would only be testing the underlying crypto libraries
             else:
-                v_private_keypair = _TestKeypair.from_jwk(vs_jwk)
+                v_private_keypair = _SimpleTestKeypair(value=int(vec['dsCAVS'], 16))
                 v_private_keypair._otherinfo = otherinfo
-                v_public_keypair = _private_to_public(v_private_keypair)
+                v_public_keypair = self._private_to_public(v_private_keypair)
 
                 ku = u_private_keypair.ecdh(v_public_keypair)
                 kv = v_private_keypair.ecdh(u_public_keypair)
@@ -943,8 +730,379 @@ class TestKeypair(unittest.TestCase):
                     self.assertEqual(ku, dkm)
                     self.assertEqual(kv, dkm)
 
-                    eve_keypair = service.create_secret_key()
+                    eve_keypair = _SimpleTestKeypair()
                     keve = eve_keypair.ecdh(u_private_keypair)
                     self.assertNotEqual(ku, keve)
                 else:
                     self.assertNotEqual(ku, kv)
+
+
+class TestKeypair(unittest.TestCase):
+    BASE_PATH = os.path.dirname(__file__)
+    x509_PATH = os.path.join(BASE_PATH, 'x509')
+
+    def _private_to_public(self, private_keypair):
+        return keychain.Keypair.from_public_der(private_keypair.public_key_der)
+
+    def test_is_private(self):
+        keypair = keychain.create_private_keypair()
+        self.assertTrue(keypair.is_private)
+
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+        self.assertFalse(public_keypair.is_private)
+
+    def test_load_pem_path(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
+        keypair = keychain.Keypair.from_private_pem(path=pem_path)
+        self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_pem_path_pkcs8(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_pkcs8_private_key.pem')
+        keypair = keychain.Keypair.from_private_pem(path=pem_path)
+        self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_pem_path_missing(self):
+        pem_path = None
+        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
+            pem_path = tf.name
+        keypair = keychain.Keypair.from_private_pem(path=pem_path)
+        self.assertIsNone(keypair)
+
+    def test_load_pem_bytes(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
+        with open(pem_path, 'rb') as f:
+            pem_data = f.read()
+            keypair = keychain.Keypair.from_private_pem(key_bytes=pem_data)
+            self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_pem_bytes_pkcs8(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_pkcs8_private_key.pem')
+        with open(pem_path, 'rb') as f:
+            pem_data = f.read()
+            keypair = keychain.Keypair.from_private_pem(key_bytes=pem_data)
+            self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_pem_public_path(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
+        keypair = keychain.Keypair.from_public_pem(path=pem_path)
+        self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_public_pem_bytes(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
+        with open(pem_path, 'rb') as f:
+            pem_data = f.read()
+            keypair = keychain.Keypair.from_public_pem(key_bytes=pem_data)
+            self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_load_public_pem_path_missing(self):
+        pem_path = None
+        with tempfile.NamedTemporaryFile(suffix='.pem') as tf:
+            pem_path = tf.name
+
+        keypair = keychain.Keypair.from_public_pem(path=pem_path)
+        self.assertIsNone(keypair)
+
+    def test_load_der_bytes(self):
+        der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
+        with open(der_path, 'rb') as f:
+            der_data = f.read()
+            keypair = keychain.Keypair.from_private_der(der_data)
+            self.assertIsInstance(keypair, keychain.Keypair)
+
+    def test_export_pem(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
+        with open(pem_path, 'rb') as f:
+            pem_bytes = f.read()
+            token = keychain.Keypair.from_private_pem(key_bytes=pem_bytes)
+            self.assertEqual(token.private_key_pem, pem_bytes)
+
+    def test_export_private_pem_from_public(self):
+        keypair = keychain.create_private_keypair()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.private_key_pem
+
+    def test_export_der(self):
+        der_path = os.path.join(self.x509_PATH, 'ec_sha256.der')
+        with open(der_path, 'rb') as f:
+            der_bytes = f.read()
+            token = keychain.Keypair.from_private_der(der_bytes)
+            self.assertEqual(token.private_key_der, der_bytes)
+
+    def test_export_private_der_from_public(self):
+        keypair = keychain.create_private_keypair()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.private_key_der
+
+    def test_sign_self_verify(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_sha256.pem')
+        with open(pem_path, 'rb') as f:
+            pem_bytes = f.read()
+            token = keychain.Keypair.from_private_pem(key_bytes=pem_bytes)
+            r, s = token.sign(b'MESSAGE')
+            self.assertTrue(token.verify(b"MESSAGE", r, s))
+
+    def test_sign_with_public(self):
+        keypair = keychain.create_private_keypair()
+        public_keypair = keychain.Keypair.from_public_der(keypair.public_key_der)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            public_keypair.sign(b'anything')
+
+    def test_verify_known_signatures(self):
+        # from CAVS data
+        _CAVS_ECDSA_VERIFY_VECTORS = [
+            {
+                "Msg": (
+                    "e4796db5f785f207aa30d311693b3702821dff1168fd2e04c0836825aefd850d"
+                    "9aa60326d88cde1a23c7745351392ca2288d632c264f197d05cd424a30336c19"
+                    "fd09bb229654f0222fcb881a4b35c290a093ac159ce13409111ff0358411133c"
+                    "24f5b8e2090d6db6558afc36f06ca1f6ef779785adba68db27a409859fc4c4a0"
+                ),
+                "Qx": "87f8f2b218f49845f6f10eec3877136269f5c1a54736dbdf69f89940cad41555",
+                "Qy": "e15f369036f49842fac7a86c8a2b0557609776814448b8f5e84aa9f4395205e9",
+                "R": "d19ff48b324915576416097d2544f7cbdf8768b1454ad20e0baac50e211f23b0",
+                "S": "a3e81e59311cdfff2d4784949f7a2cb50ba6c3a91fa54710568e61aca3e847c6",
+                "Result": False,  # (3 - S changed)
+            },
+            {
+                "Msg": (
+                    "069a6e6b93dfee6df6ef6997cd80dd2182c36653cef10c655d524585655462d6"
+                    "83877f95ecc6d6c81623d8fac4e900ed0019964094e7de91f1481989ae187300"
+                    "4565789cbf5dc56c62aedc63f62f3b894c9c6f7788c8ecaadc9bd0e81ad91b2b"
+                    "3569ea12260e93924fdddd3972af5273198f5efda0746219475017557616170e"
+                ),
+                "Qx": "5cf02a00d205bdfee2016f7421807fc38ae69e6b7ccd064ee689fc1a94a9f7d2",
+                "Qy": "ec530ce3cc5c9d1af463f264d685afe2b4db4b5828d7e61b748930f3ce622a85",
+                "R": "dc23d130c6117fb5751201455e99f36f59aba1a6a21cf2d0e7481a97451d6693",
+                "S": "d6ce7708c18dbf35d4f8aa7240922dc6823f2e7058cbc1484fcad1599db5018c",
+                "Result": False,  # (2 - R changed)
+            },
+            {
+                "Msg": (
+                    "df04a346cf4d0e331a6db78cca2d456d31b0a000aa51441defdb97bbeb20b94d"
+                    "8d746429a393ba88840d661615e07def615a342abedfa4ce912e562af7149598"
+                    "96858af817317a840dcff85a057bb91a3c2bf90105500362754a6dd321cdd861"
+                    "28cfc5f04667b57aa78c112411e42da304f1012d48cd6a7052d7de44ebcc01de"
+                ),
+                "Qx": "2ddfd145767883ffbb0ac003ab4a44346d08fa2570b3120dcce94562422244cb",
+                "Qy": "5f70c7d11ac2b7a435ccfbbae02c3df1ea6b532cc0e9db74f93fffca7c6f9a64",
+                "R": "9913111cff6f20c5bf453a99cd2c2019a4e749a49724a08774d14e4c113edda8",
+                "S": "9467cd4cd21ecb56b0cab0a9a453b43386845459127a952421f5c6382866c5cc",
+                "Result": False,  # (4 - Q changed)
+            },
+            {
+                "Msg": (
+                    "e1130af6a38ccb412a9c8d13e15dbfc9e69a16385af3c3f1e5da954fd5e7c45f"
+                    "d75e2b8c36699228e92840c0562fbf3772f07e17f1add56588dd45f7450e1217"
+                    "ad239922dd9c32695dc71ff2424ca0dec1321aa47064a044b7fe3c2b97d03ce4"
+                    "70a592304c5ef21eed9f93da56bb232d1eeb0035f9bf0dfafdcc4606272b20a3"
+                ),
+                "Qx": "e424dc61d4bb3cb7ef4344a7f8957a0c5134e16f7a67c074f82e6e12f49abf3c",
+                "Qy": "970eed7aa2bc48651545949de1dddaf0127e5965ac85d1243d6f60e7dfaee927",
+                "R": "bf96b99aa49c705c910be33142017c642ff540c76349b9dab72f981fd9347f4f",
+                "S": "17c55095819089c2e03b9cd415abdf12444e323075d98f31920b9e0f57ec871c",
+                "Result": True,  # (0 )
+            },
+            {
+                "Msg": (
+                    "73c5f6a67456ae48209b5f85d1e7de7758bf235300c6ae2bdceb1dcb27a7730f"
+                    "b68c950b7fcada0ecc4661d3578230f225a875e69aaa17f1e71c6be5c831f226"
+                    "63bac63d0c7a9635edb0043ff8c6f26470f02a7bc56556f1437f06dfa27b487a"
+                    "6c4290d8bad38d4879b334e341ba092dde4e4ae694a9c09302e2dbf443581c08"
+                ),
+                "Qx": "e0fc6a6f50e1c57475673ee54e3a57f9a49f3328e743bf52f335e3eeaa3d2864",
+                "Qy": "7f59d689c91e463607d9194d99faf316e25432870816dde63f5d4b373f12f22a",
+                "R": "1d75830cd36f4c9aa181b2c4221e87f176b7f05b7c87824e82e396c88315c407",
+                "S": "cb2acb01dac96efc53a32d4a0d85d0c2e48955214783ecf50a4f0414a319c05a",
+                "Result": True,  # (0 )
+            },
+        ]
+
+        def hex2bytes(hex_value):
+            return bytes(bytearray.fromhex(hex_value))
+
+        for vec in _CAVS_ECDSA_VERIFY_VECTORS:
+            logger.debug('testing vec=%s', vec)
+            keypair = keychain.Keypair.from_jwk({
+                "kty": "EC",
+                "crv": "P-256",
+                "x": utils.base64url_encode(hex2bytes(vec['Qx'])),
+                "y": utils.base64url_encode(hex2bytes(vec['Qy'])),
+            })
+
+            try:
+                keypair.verify(hex2bytes(vec['Msg']), int(vec['R'], 16), int(vec['S'], 16))
+
+                if not vec['Result']:
+                    logger.debug('unexpected valid signature')
+                    raise ValueError('expected verify to fail')
+
+            except exceptions.InvalidSignatureError:
+                if vec['Result']:
+                    logger.debug('unexpected invalid signature', exc_info=True)
+                    raise
+
+    def test_public_key_der(self):
+        der = base64.b64decode(
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
+            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
+        )
+        keypair = keychain.Keypair.from_public_der(der)
+        self.assertEqual(keypair.public_key_der, der)
+
+    def test_public_key_pem(self):
+        pem_path = os.path.join(self.x509_PATH, 'ec_public_key.pem')
+        with open(pem_path, 'rb') as f:
+            pem = f.read()
+            keypair = keychain.Keypair.from_public_pem(pem)
+            self.assertEqual(keypair.public_key_pem, pem)
+
+    def test_private_jwk(self):
+        keypair = keychain.create_private_keypair()
+        jwk = keypair.jwk
+        self.assertIn('kty', jwk)
+        self.assertIn('crv', jwk)
+        self.assertIn('x', jwk)
+        self.assertIn('y', jwk)
+        self.assertIn('d', jwk)
+
+        self.assertNotIn('kid', jwk)
+
+        self.assertEqual(jwk['kty'], 'EC')
+        self.assertEqual(jwk['crv'], 'P-256')
+
+        self.assertEqual(jwk, keypair.jwk_private)
+        self.assertNotEqual(jwk, keypair.jwk_public)
+
+    def test_jwk_with_identity(self):
+        keypair = keychain.create_private_keypair()
+        jwk = keypair.jwk
+
+        self.assertNotIn('kid', jwk)
+
+        identity = str(uuid.uuid4())
+        keypair.identity = identity
+
+        jwk = keypair.jwk
+        self.assertIn('kid', jwk)
+
+        self.assertEqual(identity, jwk['kid'])
+
+    def test_public_jwk(self):
+        der = base64.b64decode(
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
+            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
+        )
+        keypair = keychain.Keypair.from_public_der(der)
+        jwk = keypair.jwk
+        self.assertIn('kty', jwk)
+        self.assertIn('crv', jwk)
+        self.assertIn('x', jwk)
+        self.assertIn('y', jwk)
+        self.assertNotIn('d', jwk)
+
+        self.assertNotIn('kid', jwk)
+
+        self.assertEqual(jwk['kty'], 'EC')
+        self.assertEqual(jwk['crv'], 'P-256')
+
+        self.assertEqual(jwk, keypair.jwk_public)
+
+        with self.assertRaises(exceptions.InvalidFormatError):
+            keypair.jwk_private
+
+    def test_from_private_jwk(self):
+        keypair = keychain.create_private_keypair()
+        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
+        self.assertEqual(keypair.private_key_der, keypair2.private_key_der)
+        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
+
+    def test_from_private_jwk_with_identity(self):
+        keypair = keychain.create_private_keypair()
+        jwk = keypair.jwk
+
+        keypair2 = keychain.Keypair.from_jwk(jwk)
+        self.assertIsNone(keypair2.identity)
+
+        identity = str(uuid.uuid4())
+        jwk['kid'] = identity
+
+        keypair3 = keychain.Keypair.from_jwk(jwk)
+        self.assertIsNotNone(keypair3.identity)
+        self.assertEqual(identity, keypair3.identity)
+
+    def test_from_public_jwk(self):
+        der = base64.b64decode(
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJLzzbuz2tRnLFlOL+6bTX6giVavA'
+            'sc6NDFFT0IMCd2ibTTNUDDkFGsgq0cH5JYPg/6xUlMBFKrWYe3yQ4has9w=='
+        )
+        keypair = keychain.Keypair.from_public_der(der)
+        keypair2 = keychain.Keypair.from_jwk(keypair.jwk)
+        self.assertEqual(keypair.public_key_der, keypair2.public_key_der)
+
+    def test_from_invalid_jwk_type(self):
+        keypair = keychain.create_private_keypair()
+        jwk = keypair.jwk
+        jwk['kty'] = 'RSA'
+        with self.assertRaises(ValueError):
+            keypair = keychain.Keypair.from_jwk(jwk)
+
+    def test_from_invalid_jwk_curve(self):
+        keypair = keychain.create_private_keypair()
+        jwk = keypair.jwk
+        jwk['crv'] = 'P-384'
+        with self.assertRaises(ValueError):
+            keypair = keychain.Keypair.from_jwk(jwk)
+
+    def test_ecdh(self):
+        ue_jwk = {
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "gI0GAILBdu7T53akrFmMyGcsF3n5dO7MmwNBHKW5SV0",
+            "y": "SLW_xSffzlPWrHEVI30DHM_4egVwt3NQqeUD7nMFpps",
+            "d": "0_NxaRPUMQoAJt50Gz8YiTr8gRTwyEaCumd-MToTmIo",
+        }
+        apu = 'Alice'
+        u_private_keypair = keychain.Keypair.from_jwk(ue_jwk)
+        u_public_keypair = self._private_to_public(u_private_keypair)
+        v_jwk = {
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "weNJy2HscCSM6AEDTDg04biOvhFhyyWvOHQfeF_PxMQ",
+            "y": "e8lnCO-AlStT-NJVX-crhB7QRYhiix03illJOVAOyck",
+            "d": "VEmDZpDXXK8p8N0Cndsxs924q6nS1RXFASRl6BfUqdw",
+        }
+        apv = 'Bob'
+        v_private_keypair = keychain.Keypair.from_jwk(v_jwk)
+        v_public_keypair = self._private_to_public(v_private_keypair)
+
+        ku = u_private_keypair.ecdh(v_public_keypair, party_u_info=apu, party_v_info=apv)
+        kv = v_private_keypair.ecdh(u_public_keypair, party_u_info=apu, party_v_info=apv)
+
+        self.assertEqual(len(ku), 32)
+        self.assertEqual(ku, kv)
+
+        eve_keypair = keychain.create_private_keypair()
+        keve = eve_keypair.ecdh(u_private_keypair, party_u_info=apu, party_v_info=apv)
+        self.assertNotEqual(ku, keve)
+
+
+class TestCreatePrivateKey(unittest.TestCase):
+    def test_basic_call(self):
+        kp = keychain.create_private_keypair()
+        self.assertIsInstance(kp, keychain.Keypair)
+
+    def test_save_to_file(self):
+        fp = tempfile.NamedTemporaryFile()
+        filename = fp.name
+        fp.close()
+
+        kp = keychain.create_private_keypair(output=filename)
+
+        with open(filename, 'rb') as f:
+            key_data = f.read()
+            self.assertEqual(key_data, kp.private_key_pem)

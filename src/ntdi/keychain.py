@@ -126,11 +126,11 @@ class BaseKeypair(object):
         return template.format('\n'.join(pieces)).encode('utf-8')
 
     @property
-    def secret_as_der(self):
+    def private_key_der(self):
         raise NotImplementedError
 
     @property
-    def secret_as_pem(self):
+    def private_key_pem(self):
         raise NotImplementedError
 
     @property
@@ -181,7 +181,7 @@ class BaseKeypair(object):
         :return_type: bytes
         :raises InvalidFormatError: if self is not a private key
         """
-        if not self.is_secret:
+        if not self.is_private:
             raise exceptions.InvalidFormatError
         raw_key = self.raw_ecdh(peer_keypair)
         otherinfo = self.calc_ecdh_otherinfo(algorithm, party_u_info, party_v_info)
@@ -219,19 +219,19 @@ class BaseKeypair(object):
 class Keypair(BaseKeypair):
     def __init__(self, *args, **kwargs):
         """
-        :param kwargs: Pass secret key bytes
+        :param kwargs: may include an `EllipticCurvePrivateKey` in 'ec_private_key'
         """
         super(Keypair, self).__init__(*args, **kwargs)
 
         self._private_key = None
         self._cached_public_key = None
 
-        if kwargs.get('secret_bytes') and \
-                isinstance(kwargs['secret_bytes'], ec.EllipticCurvePrivateKey):
-            self._load_secret_bytes(kwargs['secret_bytes'])
+        if kwargs.get('ec_private_key') and \
+                isinstance(kwargs['ec_private_key'], ec.EllipticCurvePrivateKey):
+            self._load_ec_private_key(kwargs['ec_private_key'])
 
-    def _load_secret_bytes(self, secret_bytes):
-        self._private_key = secret_bytes
+    def _load_ec_private_key(self, ec_private_key):
+        self._private_key = ec_private_key
 
     @property
     def _public_key(self):
@@ -245,32 +245,50 @@ class Keypair(BaseKeypair):
         return self._cached_public_key
 
     @property
-    def is_secret(self):
+    def is_private(self):
         return self._private_key is not None
 
     @property
-    def secret_as_der(self):
+    def public_key_der(self):
         """
-        Write out the private key as a DER format
+        DER-formatted public key
 
-        :return: DER encoded private key
+        :return: Public Key in DER format
         """
-        if not self.is_secret:
+        return self._public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
+    @property
+    def public_key_pem(self):
+        """
+        PEM-formatted public key
+
+        :return: Public Key in PEM format
+        """
+        return self._public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+
+    @property
+    def private_key_der(self):
+        """
+        DER-formatted private key
+
+        :return: Private Key in DER format
+        """
+        if not self.is_private:
             raise exceptions.InvalidFormatError
-        secret_der = self._private_key.private_bytes(
+        private_der = self._private_key.private_bytes(
             Encoding.DER, PrivateFormat.PKCS8, NoEncryption()
         )
 
-        return secret_der
+        return private_der
 
     @property
-    def secret_as_pem(self):
+    def private_key_pem(self):
         """
-        Write out the private key as a PEM format
+        PEM-formatted private key
 
-        :return: Pem Encoded private key
+        :return: Private Key in PEM format
         """
-        if not self.is_secret:
+        if not self.is_private:
             raise exceptions.InvalidFormatError
         return self._private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
@@ -301,25 +319,25 @@ class Keypair(BaseKeypair):
         :return: TDI-standard JWK
         :raises InvalidFormatError: if not a private key
         """
-        if not self.is_secret:
+        if not self.is_private:
             raise exceptions.InvalidFormatError
         return self.get_jwk(True)
 
     @classmethod
-    def from_secret_pem(cls, key_bytes=None, path=None):
+    def from_private_pem(cls, key_bytes=None, path=None):
         """
         Create a :class:`~ntdi.keychain.Keypair` from a PEM-formatted private ECDSA key
 
         :return: :class:`~ntdi.keychain.Keypair` instance
         """
         if key_bytes:
-            secret_bytes = load_pem_private_key(utils.to_bytes(key_bytes), None, _BACKEND)
-            return cls(secret_bytes=secret_bytes)
+            ec_private_key = load_pem_private_key(utils.to_bytes(key_bytes), None, _BACKEND)
+            return cls(ec_private_key=ec_private_key)
 
         if file_adapter.file_exists(path):
             with file_adapter.read_file(path) as pem_data:
-                secret_bytes = load_pem_private_key(pem_data, None, _BACKEND)
-                return cls(secret_bytes=secret_bytes)
+                ec_private_key = load_pem_private_key(pem_data, None, _BACKEND)
+                return cls(ec_private_key=ec_private_key)
 
     @classmethod
     def from_public_pem(cls, key_bytes=None, path=None):
@@ -346,15 +364,15 @@ class Keypair(BaseKeypair):
         return ret
 
     @classmethod
-    def from_secret_der(cls, der_key):
+    def from_private_der(cls, der_key):
         """
         Read a der_key, convert it a private key
 
         :param der_key: der formatted key
         :return:
         """
-        secret_bytes = load_der_private_key(der_key, None, _BACKEND)
-        return cls(secret_bytes=secret_bytes)
+        ec_private_key = load_der_private_key(der_key, None, _BACKEND)
+        return cls(ec_private_key=ec_private_key)
 
     @classmethod
     def from_public_der(cls, public_key):
@@ -405,7 +423,7 @@ class Keypair(BaseKeypair):
 
         return ret
 
-    def get_jwk(self, include_secret):
+    def get_jwk(self, include_private):
         public_numbers = self._public_key.public_numbers()
         ret = {
           "kty": "EC",
@@ -419,7 +437,7 @@ class Keypair(BaseKeypair):
         if self.identity:
             ret['kid'] = str(self.identity)
 
-        if self.is_secret and include_secret:
+        if self.is_private and include_private:
             private_numbers = self._private_key.private_numbers()
             d = int_to_bytes(private_numbers.private_value)
             ret['d'] = utils.to_string(utils.base64url_encode(d))
@@ -455,7 +473,7 @@ class Keypair(BaseKeypair):
         :return: r, s signature values
         :return_type: tuple of 2 ints
         """
-        if not self.is_secret:
+        if not self.is_private:
             raise exceptions.InvalidFormatError
 
         dss_sig = self._private_key.sign(utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
@@ -464,23 +482,22 @@ class Keypair(BaseKeypair):
     def raw_ecdh(self, peer_keypair):
         return self._private_key.exchange(ec.ECDH(), peer_keypair._public_key)
 
-    @property
-    def public_key_der(self):
-        """
-        DER formatted public key
 
-        :return: Public Key in DER format
-        """
-        return self._public_key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+def create_private_keypair(output=None):
+    """
+    Create a private key and save it to a secure location
 
-    @property
-    def public_key_pem(self):
-        """
-        PEM formatted public key
+    :param output: Path to save the private key
+    :return: ntdi.keychain.Keypair
+    """
+    private_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
+    private_bytes = private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
-        :return: Public Key in PEM format
-        """
-        return self._public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+    # Save the private key bytes to a secure file
+    if output and file_adapter.file_directory_exists(output):
+        file_adapter.write_file(output, private_bytes)
+
+    return Keypair.from_private_pem(key_bytes=private_bytes)
 
 
 def _len_bytes(data):

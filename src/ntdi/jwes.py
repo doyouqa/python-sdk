@@ -16,7 +16,7 @@ import json
 import base64
 import logging
 
-from . import jose, service, keychain, utils, exceptions
+from . import jose, keychain, symcrypt, utils, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +49,10 @@ def make_jwe(raw_claims, sender_keypair, recipient_keypairs, jsonify=True, json_
     plaintext = json_encoder(claims)
     nonce = claims['jti']
 
-    ephemeral_keypair = service.create_secret_key()
+    ephemeral_keypair = keychain.create_private_keypair()
     common_header = _make_header(claims, sender_keypair.identity, ephemeral_keypair)
-    cek = service.create_aes_key()
-    encrypted_claims = service.encrypt_attr_value(plaintext, cek, legacy_support=False)
+    cek = symcrypt.create_aes_key()
+    encrypted_claims = symcrypt.aes_encrypt(plaintext, cek, legacy_support=False)
 
     ret = {
         "unprotected": common_header,
@@ -116,12 +116,12 @@ def decrypt_jwe(jwe, recipient_keypair, json_decoder=json.loads):
     e_cek = utils.base64url_decode(recipient['encrypted_key'])
 
     try:
-        cek = service.key_unwrap(kek, e_cek)
+        cek = symcrypt.key_unwrap(kek, e_cek)
     except:  # noqa: E722
         logger.warning('invalid attempt to decrypt CEK, id=%s', recipient_keypair.identity)
         raise exceptions.DecryptionFailed
 
-    # recast into form expected by decrypt_attr_value
+    # recast into form expected by aes_decrypt
     # TODO: have it be more flexible?
     #
     attr_value = {
@@ -132,7 +132,7 @@ def decrypt_jwe(jwe, recipient_keypair, json_decoder=json.loads):
     # 'cipher': 'aes', mode': 'gcm' are assumed, 'ts': 128 isn't needed
 
     try:
-        claims = service.decrypt_attr_value(attr_value, cek)
+        claims = symcrypt.aes_decrypt(attr_value, cek)
     except:  # noqa: E722
         logger.warning('invalid attempt to decrypt claims, id=%s', recipient_keypair.identity)
         raise exceptions.DecryptionFailed
@@ -170,7 +170,7 @@ def _encrypt_to_recipient(cek, sender_identity, ephemeral_keypair, recipient_key
       },
     }
     kek = ephemeral_keypair.ecdh(recipient_keypair, party_u_info=apu, party_v_info=apv)
-    encrypted_key = service.key_wrap(kek, cek)
+    encrypted_key = symcrypt.key_wrap(kek, cek)
     ret['encrypted_key'] = utils.to_string(utils.base64url_encode(encrypted_key))
 
     del kek

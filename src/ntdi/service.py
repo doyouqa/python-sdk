@@ -10,15 +10,9 @@ import os
 import re
 import logging
 
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization \
-    import Encoding, PrivateFormat, NoEncryption
 
-from . import keychain
 from . import jwts
-from . import file_adapter
-from . import symcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -176,60 +170,3 @@ class BaseService(object):
         else:
             # Replace the entire body with kwargs['body'] (if present)
             return self.session.service_request(http_method, url, body=kwargs.get('body'))
-
-
-def create_secret_key(output=None):
-    """
-    Create a secret key and save it to a secure location
-
-    :param output: Path to save the secret key
-    :return: ntdi.keychain.Keypair
-    """
-    secret_key = ec.generate_private_key(ec.SECP256R1(), _BACKEND)
-    secret_key_bytes = secret_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
-
-    # Save the secret key bytes to a secure file
-    if output and file_adapter.file_directory_exists(output):
-        file_adapter.write_file(output, secret_key_bytes)
-
-    return keychain.Keypair.from_secret_pem(key_bytes=secret_key_bytes)
-
-
-def create_aes_key():
-    """
-    Create an AES256 key for symmetric encryption
-
-    :return: Encryption key bytes
-    """
-    return symcrypt.create_aes_key()
-
-
-def encrypt_attr_value(attr_value, aes_key, legacy_support=True):
-    """
-    Convenience method to encrypt attribute properties
-
-    :param attr_value: plain text (string or bytes) that you want encrypted
-    :param aes_key: symmetric key to encrypt attribute value with
-    :return: Dictionary (Flattened JWE) with base64-encoded ciphertext and base64-encoded iv
-    """
-    return symcrypt.aes_encrypt(attr_value, aes_key, legacy_support)
-
-
-def decrypt_attr_value(attr_ct, aes_key):
-    """
-    Convenience method to decrypt attribute properties
-
-    :param attr_ct: Dictionary (may be a Flattened JWE) with base64-encoded
-        ciphertext and base64-encoded iv
-    :param aes_key: symmetric key to decrypt attribute value with
-    :return: plaintext bytes
-    """
-    return symcrypt.aes_decrypt(attr_ct, aes_key)
-
-
-def key_wrap(wrapping_key, key_to_wrap):
-    return symcrypt.key_wrap(wrapping_key, key_to_wrap)
-
-
-def key_unwrap(wrapping_key, wrapped_key):
-    return symcrypt.key_unwrap(wrapping_key, wrapped_key)
