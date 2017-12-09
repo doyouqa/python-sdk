@@ -100,6 +100,21 @@ class TestFleetCredentials(TestCredentials):
             )
 
 
+class TestBaseKeypair(unittest.TestCase):
+
+    def test_pem_construction(self):
+        std_keypair = service.create_secret_key()
+
+        class MyKeypair(keychain.BaseKeypair):
+            @property
+            def public_key_der(self):
+                return std_keypair.public_key_der
+
+        my_keypair = MyKeypair()
+
+        self.assertEqual(std_keypair.public_key_pem, my_keypair.public_key_pem)
+
+
 class TestKeypair(unittest.TestCase):
     BASE_PATH = os.path.dirname(__file__)
     x509_PATH = os.path.join(BASE_PATH, 'x509')

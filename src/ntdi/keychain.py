@@ -6,6 +6,7 @@ Keys should be kept in a secure storage enclave.
 """
 from __future__ import division
 
+import base64
 import struct
 import logging
 
@@ -112,7 +113,17 @@ class BaseKeypair(object):
 
     @property
     def public_key_pem(self):
-        raise NotImplementedError
+        template = '\n'.join([
+            '-----BEGIN PUBLIC KEY-----',
+            '{}',
+            '-----END PUBLIC KEY-----',
+            '',
+        ])
+        b64_key = base64.b64encode(self.public_key_der).decode('utf-8')
+
+        pieces = [b64_key[i:i+64] for i in range(0, len(b64_key), 64)]
+
+        return template.format('\n'.join(pieces)).encode('utf-8')
 
     @property
     def secret_as_der(self):
