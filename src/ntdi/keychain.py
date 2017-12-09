@@ -216,6 +216,37 @@ class Keypair(BaseKeypair):
             raise exceptions.InvalidFormatError
         return self._private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
 
+    @property
+    def jwk(self):
+        """
+        The keys as a JSON Web Key (JWK)
+        Private key will be included only if present
+
+        :return: TDI-standard JWK
+        """
+        return self.get_jwk(True)
+
+    @property
+    def jwk_public(self):
+        """
+        The public key as a JSON Web Key (JWK)
+
+        :return: TDI-standard JWK
+        """
+        return self.get_jwk(False)
+
+    @property
+    def jwk_private(self):
+        """
+        The private key as a JSON Web Key (JWK)
+
+        :return: TDI-standard JWK
+        :raises InvalidFormatError: if not a private key
+        """
+        if not self.is_secret:
+            raise exceptions.InvalidFormatError
+        return self.get_jwk(True)
+
     @classmethod
     def from_secret_pem(cls, key_bytes=None, path=None):
         """
@@ -315,37 +346,6 @@ class Keypair(BaseKeypair):
             ret.identity = jwk['kid']
 
         return ret
-
-    @property
-    def jwk(self):
-        """
-        The keys as a JSON Web Key (JWK)
-        Private key will be included only if present
-
-        :return: TDI-standard JWK
-        """
-        return self.get_jwk(True)
-
-    @property
-    def jwk_public(self):
-        """
-        The public key as a JSON Web Key (JWK)
-
-        :return: TDI-standard JWK
-        """
-        return self.get_jwk(False)
-
-    @property
-    def jwk_private(self):
-        """
-        The private key as a JSON Web Key (JWK)
-
-        :return: TDI-standard JWK
-        :raises InvalidFormatError: if not a private key
-        """
-        if not self.is_secret:
-            raise exceptions.InvalidFormatError
-        return self.get_jwk(True)
 
     def get_jwk(self, include_secret):
         public_numbers = self.public_key.public_numbers()
