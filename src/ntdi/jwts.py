@@ -70,9 +70,9 @@ def make_jwt(raw_claims, keypair, json_encoder=json.dumps):
 
     payload = '{header}.{claims}'.format(header=header_b64, claims=claims_b64)
 
-    signature = utils.to_string(keypair.sign(payload))
+    sig_b64 = jose.signature_to_b64(*keypair.sign(payload))
 
-    return '{payload}.{sig}'.format(payload=payload, sig=signature)
+    return '{payload}.{sig}'.format(payload=payload, sig=sig_b64)
 
 
 def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
@@ -109,16 +109,13 @@ def verify_jwt(jwt, keypair=None, json_decoder=json.loads):
     data_to_sign, signature_b64 = jwt.rsplit('.', 1)
 
     context = _make_context(keypair, signature_b64)
+    r, s = jose.b64_to_signature(signature_b64)
 
-    header = _verify_jose_header(utils.to_string(header_json), True, json_decoder)
+    _verify_jose_header(utils.to_string(header_json), True, json_decoder)
     claims = _verify_claims(utils.to_string(claims_json), [context], json_decoder)
 
     if keypair:
-        try:
-            keypair.verify(data_to_sign, signature_b64)
-        except:  # noqa: E722
-            logger.debug('invalid signature, header=%s, claims=%s', header, claims, exc_info=True)
-            raise exceptions.InvalidSignatureError
+        keypair.verify(data_to_sign, r, s)
 
     if 'jti' in claims:
         nonces.burn_nonce(claims['jti'], context)
@@ -416,7 +413,7 @@ def _protected_signature(claims_b64, keypair, json_encoder=json.dumps,
     header_b64 = utils.to_string(utils.base64url_encode(json_encoder(header)))
     to_sign = '{header}.{claims}'.format(header=header_b64, claims=claims_b64)
 
-    sig = utils.to_string(keypair.sign(to_sign))
+    sig = jose.signature_to_b64(*keypair.sign(to_sign))
 
     return {
         'protected': header_b64,
@@ -620,11 +617,8 @@ def _get_signature_header(signature, json_decoder):
 
 
 def _verify_jws_signature(payload, keypair, signature):
-    try:
-        keypair.verify('.'.join([signature['protected'], payload]), signature['signature'])
-    except:  # noqa: E722
-        logger.debug('invalid signature', exc_info=True)
-        raise exceptions.InvalidSignatureError
+    r, s = jose.b64_to_signature(signature['signature'])
+    keypair.verify('.'.join([signature['protected'], payload]), r, s)
 
 
 def _make_context(keypair, signature_b64):

@@ -14,12 +14,14 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, \
     load_pem_public_key, load_der_private_key, load_der_public_key
 
-from cryptography.hazmat.primitives.asymmetric.utils \
-    import decode_dss_signature, encode_dss_signature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization \
     import Encoding, PublicFormat, PrivateFormat, NoEncryption
 from cryptography.hazmat.primitives.kdf.concatkdf import ConcatKDFHash
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    decode_dss_signature, encode_dss_signature,
+)
+
 from cryptography.utils import int_to_bytes, int_from_bytes
 
 from . import symcrypt, utils, exceptions, file_adapter
@@ -132,7 +134,7 @@ class BaseKeypair(object):
     def jwk_public(self):
         raise NotImplementedError
 
-    def verify(self, payload, signature):
+    def verify(self, payload, r, s):
         raise NotImplementedError
 
     def sign(self, payload):
@@ -402,25 +404,25 @@ class Keypair(BaseKeypair):
 
         return ret
 
-    def verify(self, payload, signature):
+    def verify(self, payload, r, s):
         """
-        Verify that the token signed the data
+        Verify that the associated private key signed the data
 
         :type payload: String
         :param payload: message that was signed and needs verified
-        :type signature: Base64 URL Safe
-        :param signature: Signature that can verify the sender\'s identity and payload
+        :param r: R part of signature that can verify the sender\'s identity and payload
+        :type r: int
+        :param s: S part of signature
+        :type s: int
+        :raises InvalidSignatureError: if validation fails for any reason
         :return:
         """
-        raw_sig = utils.base64url_decode(signature)
-        sig_r_bin = raw_sig[:len(raw_sig)//2]
-        sig_s_bin = raw_sig[len(raw_sig)//2:]
-
-        sig_r = int_from_bytes(sig_r_bin, 'big')
-        sig_s = int_from_bytes(sig_s_bin, 'big')
-
-        sig = encode_dss_signature(sig_r, sig_s)
-        self.public_key.verify(sig, utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
+        try:
+            signature = encode_dss_signature(r, s)
+            self.public_key.verify(signature, utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
+        except:  # noqa: E722
+            logger.debug('invalid signature', exc_info=True)
+            raise exceptions.InvalidSignatureError
         return True
 
     def sign(self, payload):
@@ -428,20 +430,14 @@ class Keypair(BaseKeypair):
         Sign a payload
 
         :param payload: String (usually jwt payload)
-        :return: URL safe base64 signature
+        :return: r, s signature values
+        :return_type: tuple of 2 ints
         """
         if not self.is_secret:
             raise exceptions.InvalidFormatError
 
-        signature = self._private_key.sign(utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
-
-        r, s = decode_dss_signature(signature)
-
-        br = int_to_bytes(r, KEYSIZE_BYTES)
-        bs = int_to_bytes(s, KEYSIZE_BYTES)
-        str_sig = br + bs
-        b64_signature = utils.base64url_encode(str_sig)
-        return b64_signature
+        dss_sig = self._private_key.sign(utils.to_bytes(payload), ec.ECDSA(hashes.SHA256()))
+        return decode_dss_signature(dss_sig)
 
     def raw_ecdh(self, peer_keypair):
         return self._private_key.exchange(ec.ECDH(), peer_keypair.public_key)

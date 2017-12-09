@@ -819,7 +819,7 @@ class TestJWSs(TestCase):
         jws = json.loads(jwts.make_jws({'a': 1}, self.keypairs[:1]))
         jws['signatures'][0]['signature'] = 'bogus'
 
-        with self.assertRaises(exceptions.InvalidSignatureError):
+        with self.assertRaises(Exception):
             jwts.verify_jws(json.dumps(jws), self.keypairs[:1])
 
     def test_jws_verify_no_signatures(self):

@@ -15,7 +15,10 @@ import logging
 from datetime import datetime
 from dateutil import tz
 
+from cryptography.utils import int_to_bytes, int_from_bytes
+
 from . import nonces, utils, exceptions
+from .keychain import KEYSIZE_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -195,3 +198,22 @@ def as_dict(msg, json_decoder=json.loads):
         msg = json_decoder(utils.to_string(msg))
 
     return msg
+
+
+def b64_to_signature(b64_sig):
+    signature = utils.base64url_decode(b64_sig)
+    r_bin = signature[:len(signature)//2]
+    s_bin = signature[len(signature)//2:]
+
+    r = int_from_bytes(r_bin, 'big')
+    s = int_from_bytes(s_bin, 'big')
+
+    return r, s
+
+
+def signature_to_b64(r, s):
+    br = int_to_bytes(r, KEYSIZE_BYTES)
+    bs = int_to_bytes(s, KEYSIZE_BYTES)
+    str_sig = br + bs
+
+    return utils.to_string(utils.base64url_encode(str_sig))

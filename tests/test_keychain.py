@@ -202,8 +202,8 @@ class TestKeypair(unittest.TestCase):
         with open(pem_path, 'rb') as f:
             pem_bytes = f.read()
             token = keychain.Keypair.from_secret_pem(key_bytes=pem_bytes)
-            signature = token.sign(b'MESSAGE')
-            self.assertTrue(token.verify(b"MESSAGE", signature))
+            r, s = token.sign(b'MESSAGE')
+            self.assertTrue(token.verify(b"MESSAGE", r, s))
 
     def test_sign_with_public(self):
         keypair = service.create_secret_key()
