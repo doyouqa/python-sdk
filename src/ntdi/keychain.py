@@ -480,7 +480,17 @@ class Keypair(BaseKeypair):
         return decode_dss_signature(dss_sig)
 
     def raw_ecdh(self, peer_keypair):
-        return self._private_key.exchange(ec.ECDH(), peer_keypair._public_key)
+
+        if (
+            hasattr(peer_keypair, '_public_key') and
+            isinstance(peer_keypair._public_key, ec.EllipticCurvePublicKey)
+        ):
+            ec_public_key = peer_keypair._public_key
+
+        else:
+            ec_public_key = load_der_public_key(peer_keypair.public_key_der, _BACKEND)
+
+        return self._private_key.exchange(ec.ECDH(), ec_public_key)
 
 
 def create_private_keypair(output=None):

@@ -121,6 +121,10 @@ class _SimpleTestKeypair(keychain.BaseKeypair):
     def is_private(self):
         return self._private is not None
 
+    @property
+    def public_key_der(self):
+        return self._public.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
     def calc_ecdh_otherinfo(self, algorithm, party_u_info, party_v_info):
 
         # allow injection of otherinfo
@@ -132,7 +136,8 @@ class _SimpleTestKeypair(keychain.BaseKeypair):
         )
 
     def raw_ecdh(self, peer_keypair):
-        return self._private.exchange(ec.ECDH(), peer_keypair._public)
+        ec_public_key = load_der_public_key(peer_keypair.public_key_der, _BACKEND)
+        return self._private.exchange(ec.ECDH(), ec_public_key)
 
 
 class _SimpleTestPublicKeypair(keychain.BaseKeypair):
@@ -1089,6 +1094,12 @@ class TestKeypair(unittest.TestCase):
         eve_keypair = keychain.create_private_keypair()
         keve = eve_keypair.ecdh(u_private_keypair, party_u_info=apu, party_v_info=apv)
         self.assertNotEqual(ku, keve)
+
+    def test_raw_ecdh(self):
+        keypair1 = keychain.create_private_keypair()
+        keypair2 = _SimpleTestKeypair()
+
+        self.assertEqual(keypair1.raw_ecdh(keypair2), keypair2.raw_ecdh(keypair1))
 
 
 class TestCreatePrivateKey(unittest.TestCase):
