@@ -287,7 +287,7 @@ class ServerSession(SessionBase):
         jws = jwts.make_jws(claims, self.identity_credentials.keypair)
 
         core_response = self.authenticate.server(
-            fleet_id=self.fleet_credentials.keypair.identity,
+            fleet_id=self.core_fleet_credentials.keypair.identity,
             identity=self.identity_credentials.keypair.identity,
             body=jws
         )
@@ -330,13 +330,13 @@ class ServerSession(SessionBase):
 
             if len(device_credentials) == 1:
                 message = self.authenticate.edge_device(
-                    fleet_id=self.fleet_credentials.keypair.identity,
+                    fleet_id=self.core_fleet_credentials.keypair.identity,
                     identity=keypairs[0].identity,
                     body=message,
                 )
             else:
                 message = self.authenticate.fleet(
-                    fleet_id=self.fleet_credentials.keypair.identity,
+                    fleet_id=self.core_fleet_credentials.keypair.identity,
                     body=message,
                 )
 
